@@ -4,3 +4,8 @@ int main(){
     return 0;
 }
 
+int gargamelfunction(void){
+    int x = 1+1;
+    printf("Math:%d",x);
+}
+
