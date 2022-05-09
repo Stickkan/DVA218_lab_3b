@@ -40,5 +40,9 @@ int main(int argc, char *argv[]) {
   argv[1] = "localhost";
   createSocket(&serverName, argv[1]);
 
-  return 0;
+int main(){
+    printf("This is a test in which we would like to see what git overwrites and what it doesn't.\n");
+    printf("Snopp");
+    return 0;
 }
+
