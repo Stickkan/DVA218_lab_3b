@@ -12,9 +12,9 @@
 #include <netdb.h>
 #include <pthread.h>
 
-// #define PORT 5555
-// #define hostNameLength 50
-// #define messageLength 256
-// #define MAXMSG 512
+#define PORT 5555
+#define hostNameLength 50
+#define messageLength 256
+#define MAXMSG 512
 
 #endif

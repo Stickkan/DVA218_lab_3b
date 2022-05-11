@@ -1,4 +1,3 @@
-#include "header.h"
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -11,6 +10,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+
+#include "header.h"
 
 #define PORT 5555
 #define hostNameLength 50
