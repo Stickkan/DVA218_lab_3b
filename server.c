@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include "header.h"
+#include "getChecksum.c"
 
 #define PORT 5555
 #define hostNameLength 50
@@ -83,9 +84,13 @@ int readMessage(rtp *buffer) {
   return flag;
 }
 
-int isCorrupt(rtp *buffer) {
-
-  return 0;
+/*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i headern. Jämför dem och returnerar 0 eller 1
+beroende på om de är samma eller inte.*/
+int isCorrupt(rtp *buffer, int checksum) {
+  if(getChecksum(buffer->data)==checksum)
+    return 0;  
+  else
+    return 1;
 }
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
