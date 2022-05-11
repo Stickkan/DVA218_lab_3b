@@ -10,7 +10,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 
 #define PORT 5555
 #define hostNameLength 50
@@ -84,7 +83,7 @@ int readMessage(rtp *buffer) {
 }
 
 int isCorrupt(rtp *buffer) {
-  printf("PLACEHOLDER");
+
   return 0;
 }
 
@@ -139,6 +138,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
         if (!isCorrupt(buffer) && read == SYN) {
           sendMessage(SYNACK, socketfd, buffer, clientName);
           state = SYNACK;
+          printf("Received SYN from client!\n");
           break;
         }
       }
@@ -147,17 +147,21 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       start = clock();
       int status;
       while (wait != ACK) {
-        ioctl(socketfd, FIONBIO, &status);
-        if(status > 0){
+        ioctl(socketfd, FIONREAD, &status);
+        if(status >= 0){
           wait = rcvMessage(socketfd, clientName, buffer);
+          if(wait > 0){
+            wait = readMessage(buffer);
+          }
         }
         stop = clock();
         time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
-        if (time_passed >= TIMEOUT) {
+        if ((time_passed >= TIMEOUT) || wait == NACK) {
           sendMessage(SYNACK, socketfd, buffer, clientName);
           start = clock();
         }
       }
+      printf("Received ACK From client!\n");
       starting = 0;
       break;
     default:
@@ -187,6 +191,7 @@ int main(int argc, char *argv[]) {
       case START:
         start = serverStart(socketfd, &buffer, &clientName);
         if (start == 1) {
+          printf("Test\n");
           state = OPENED;
         }
         break;

@@ -89,31 +89,43 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   return 1;
 }
 
-int wait_SYNACK(int socketfd, rtp * buffer, struct sockaddr_in *serverName) {
+int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int wait = 1, status;
-  timer_t start, stop, time_passed;
+  time_t start, stop;
+  double time_passed;
 
   start = clock();
 
-  while (wait != SYNACK){
-  
-    ioctl(socketfd, FIONBIO, &status);
-        if(status > 0){
-          wait = rcvMessage(socketfd, serverName, buffer);
-        }
-        stop = clock();
-        time_passed = (double)(stop-start)/CLOCKS_PER_SEC;
-        if(time_passed >= TIMEOUT){
-          sendMessage(NACK, socketfd, buffer, serverName);
-          start = clock(); 
-        }
+  while (1) {
+
+    ioctl(socketfd, FIONREAD, &status);
+    if (status > 0) {
+      wait = rcvMessage(socketfd, serverName, buffer);
+      if(wait > 0){
+        wait = readMessage(buffer);
+        if ((!isCorrupt(buffer)) && wait == SYNACK) {
+        sendMessage(ACK, socketfd, buffer, serverName);
+        break;
+      };
+      }
+      
+    }
+
+    stop = clock;
+    time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
+    if ((time_passed >= TIMEOUT) || wait == NACK) {
+      sendMessage(NACK, socketfd, buffer, serverName);
+      start = clock();
+    }
   }
+  printf("Client initiated!\n");
+  return 0;
 }
 
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
-  int starting = 1, state = SYN, recvResult, wait = 1, timeout = 0, sendR;
+  int starting = 1, state = INIT, recvResult, wait = 1, timeout = 0, sendR;
   time_t start, stop;
   double time_passed;
   pthread_t timeThread;
@@ -127,13 +139,14 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       }
       break;
     case SYNACK:
-      wait_SYNACK();
+      wait_SYNACK(socketfd, buffer, serverName);
       starting = 0;
       break;
     default:
       break;
     }
   }
+  return 1;
 }
 
 int main(int argc, char *argv[]) {
@@ -151,7 +164,9 @@ int main(int argc, char *argv[]) {
     case START:
       start = clientStart(socketfd, &buffer, &serverName);
       if (start == 1) {
-        state = OPENED;
+        printf("Opened!\n");
+        state = opened;
+        // state = OPENED;
       }
       break;
 
@@ -169,12 +184,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  int result = sendto(socketfd, &testMessage, sizeof(testMessage), 0,
-                      (const struct sockaddr *)&serverName, sizeof(serverName));
+  // int result = sendto(socketfd, &testMessage, sizeof(testMessage), 0,
+  //                     (const struct sockaddr *)&serverName,
+  //                     sizeof(serverName));
 
-  if (result < 0) {
-    printf("Could not send message!\n");
-  }
+  // if (result < 0) {
+  //   printf("Could not send message!\n");
+  // }
 
   return 0;
 }
