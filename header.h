@@ -12,12 +12,6 @@
 #include <netdb.h>
 #include <pthread.h>
 
-<<<<<<< HEAD
-#define PORT 5555
-#define hostNameLength 50
-#define messageLength 256
-#define MAXMSG 512
-=======
 
 // #define PORT 5555
 // #define hostNameLength 50
@@ -42,6 +36,5 @@ typedef struct rtp_struct{
     int crc;
     char data[messageLength];
 }rtp;
->>>>>>> master
 
 #endif
