@@ -16,12 +16,14 @@
 #define messageLength 256
 #define MAXMSG 512
 
+int windowSize;
+
 int createSocket(struct sockaddr_in *clientName) {
 
   int socketfd = socket(AF_INET, SOCK_DGRAM, 0);
 
- if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0)
-  {
+  if (setsockopt(socketfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) <
+      0) {
     perror("setsockopt(SO_REUSEADDR) failed");
   }
 
@@ -82,14 +84,12 @@ int readMessage(rtp *buffer) {
   return flag;
 }
 
-int isCorrupt(rtp *buffer) {
-
-  return 0;
-}
+int isCorrupt(rtp *buffer) { return 0; }
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
 
+  buffer->windowsize = windowSize;
   buffer->flags = flag;
   while (1) {
     int result =
@@ -127,13 +127,14 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
   while (starting) {
 
-    //recvResult = rcvMessage(socketfd, clientName, buffer);
-    //state = readFlag(buffer);
+    // recvResult = rcvMessage(socketfd, clientName, buffer);
+    // state = readFlag(buffer);
 
     switch (state) {
     case SYN:
       while (1) {
         rcvMessage(socketfd, clientName, buffer);
+        windowSize = buffer->windowsize;
         int read = readMessage(buffer);
         if (!isCorrupt(buffer) && read == SYN) {
           sendMessage(SYNACK, socketfd, buffer, clientName);
@@ -148,9 +149,9 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       int status;
       while (wait != ACK) {
         ioctl(socketfd, FIONREAD, &status);
-        if(status >= 0){
+        if (status >= 0) {
           wait = rcvMessage(socketfd, clientName, buffer);
-          if(wait > 0){
+          if (wait > 0) {
             wait = readMessage(buffer);
           }
         }
@@ -171,8 +172,44 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   printf("Connection established with client!\n");
   return 1;
 }
+void printMessage(rtp *buffer) {
+  printf("Message received from client: %s\n", buffer->data);
+}
 
-int serverOpened() {}
+int hasRightSeqNumber(rtp *buffer, int expectedSeqNumber) { return 1; }
+
+int serverSlidingWindows(int socketfd, rtp *buffer,
+                         struct sockaddr_in *clientName) {
+
+  int expectedPackageNumber = 0;
+  int seqNumber;
+
+  while (1) {
+    rcvMessage(socketfd, clientName, buffer);
+    if ((hasRightSeqNumber(buffer, expectedPackageNumber) == 1) &&
+        (isCorrupt) == 0) {
+      if (readMessage(buffer) == DR) {
+        printf("Disconnect request received from client!\n Initiating "
+               "shutdown!\n");
+        break;
+      }
+      if (readMessage(buffer) == 0) {
+        printMessage(buffer);
+      }
+      seqNumber = buffer->seq;
+      memset(buffer, 0, sizeof(*buffer));
+      buffer->seq = seqNumber;
+      sendMessage(ACK, socketfd, buffer, clientName);
+      expectedPackageNumber++;
+    } else {
+      seqNumber = buffer->seq;
+      memset(buffer, 0, sizeof(*buffer));
+      buffer->seq = seqNumber;
+      sendMessage(NACK, socketfd, buffer, clientName);
+    }
+  }
+  return 1;
+}
 
 int main(int argc, char *argv[]) {
   int state = START, start = 0, opened = 0, close = 0, bindResult;
@@ -197,7 +234,7 @@ int main(int argc, char *argv[]) {
         break;
 
       case OPENED:
-        opened = serverOpened();
+        opened = serverSlidingWindows(socketfd, &buffer, &clientName);
         if (opened == 1) {
           state = CLOSE;
         }

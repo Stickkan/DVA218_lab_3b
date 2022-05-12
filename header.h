@@ -27,13 +27,16 @@
 #define TIMEOUT 1
 #define NACK 8
 #define MAXMSG 512
+#define DR 9
+
+#define PACKETSTOSEND 10
 
 typedef struct rtp_struct{
     int flags;
     int id;
     int seq;
     int windowsize;
-    int crc;
+    int checksum;
     char data[messageLength];
 }rtp;
 

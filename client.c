@@ -12,6 +12,8 @@
 #include <unistd.h>
 
 #define PORT 5555
+#define WINDOWSIZE 3
+#define NUMBEROFPACKAGES 10
 // #define hostNameLength 50
 // #define messageLength 256
 // #define MAXMSG 512
@@ -75,6 +77,7 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *serverName) {
 
   buffer->flags = flag;
+  buffer->windowsize = WINDOWSIZE;
   while (1) {
     int result =
         sendto(socketfd, buffer, sizeof(*buffer), 0,
@@ -102,14 +105,13 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
     ioctl(socketfd, FIONREAD, &status);
     if (status > 0) {
       wait = rcvMessage(socketfd, serverName, buffer);
-      if(wait > 0){
+      if (wait > 0) {
         wait = readMessage(buffer);
         if ((!isCorrupt(buffer)) && wait == SYNACK) {
-        sendMessage(ACK, socketfd, buffer, serverName);
-        break;
-      };
+          sendMessage(ACK, socketfd, buffer, serverName);
+          break;
+        };
       }
-      
     }
 
     stop = clock;
@@ -133,6 +135,7 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   while (starting) {
     switch (state) {
     case INIT:
+
       sendR = sendMessage(SYN, socketfd, buffer, serverName);
       if (sendR == 1) {
         state = SYNACK;
@@ -147,6 +150,34 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
     }
   }
   return 1;
+}
+
+void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
+
+  buffer->id = packetNumber;
+  strcpy(buffer->data, data);
+  buffer->checksum = checksum;
+}
+
+int clientSlidingWindows(int socketfd, rtp *buffer,
+                         struct sockaddr_in *serverName) {
+
+  rtp packets[WINDOWSIZE];
+  int base = 0, nextPacket = 0, checksum;
+  time_t start, stop;
+  double timePassed;
+
+  while (1) {
+    if (nextPacket < (base + NUMBEROFPACKAGES)) {
+      if (nextPacket == base) {
+        start = clock();
+      }
+      for (int i = base; i < (base + WINDOWSIZE + 1); i++) {
+        makePacket(buffer, nextPacket, (packets[0]).data, checksum);
+        sendMessage(0, socketfd, buffer, serverName);
+      }
+    }
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -172,9 +203,7 @@ int main(int argc, char *argv[]) {
 
     case OPENED:
 
-      if (opened == 1) {
-        state = CLOSE;
-      }
+      clientSlidingWindows(socketfd, &buffer, &serverName);
       break;
     case CLOSE:
       break;
