@@ -181,6 +181,16 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   printf("Connection established with client!\n");
   return 1;
 }
+
+void serverTearDown(){
+  /*
+  1) Check checksum.
+  2) If uncorrect send back a NACK
+  3) If correct check the message received.
+  4) If a disconnect request terminate the connection
+  */
+}
+
 void printMessage(rtp *buffer) {
   printf("Message received from client: %s\n", buffer->data);
 }

@@ -11,9 +11,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "getChecksum.c"
+
 #define PORT 5555
-#define WINDOWSIZE 3
-#define NUMBEROFPACKAGES 10
 // #define hostNameLength 50
 // #define messageLength 256
 // #define MAXMSG 512
@@ -36,8 +36,10 @@ int createSocket(struct sockaddr_in *serverName, char *argv) {
 
   return socketfd;
 }
+
 int isCorrupt(rtp *buffer) {
-  printf("PLACEHOLDER");
+  if(getChecksum(buffer->data)==buffer->checksum)
+    return 0;
   return 0;
 }
 
@@ -77,7 +79,6 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *serverName) {
 
   buffer->flags = flag;
-  buffer->windowsize = WINDOWSIZE;
   while (1) {
     int result =
         sendto(socketfd, buffer, sizeof(*buffer), 0,
@@ -105,13 +106,14 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
     ioctl(socketfd, FIONREAD, &status);
     if (status > 0) {
       wait = rcvMessage(socketfd, serverName, buffer);
-      if (wait > 0) {
+      if(wait > 0){
         wait = readMessage(buffer);
         if ((!isCorrupt(buffer)) && wait == SYNACK) {
-          sendMessage(ACK, socketfd, buffer, serverName);
-          break;
-        };
+        sendMessage(ACK, socketfd, buffer, serverName);
+        break;
+      };
       }
+      
     }
 
     stop = clock;
@@ -135,7 +137,6 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   while (starting) {
     switch (state) {
     case INIT:
-
       sendR = sendMessage(SYN, socketfd, buffer, serverName);
       if (sendR == 1) {
         state = SYNACK;
@@ -152,32 +153,37 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   return 1;
 }
 
-void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
+int clientTearDown(rtp* buffer, int socketfd, struct sockaddr* serverName){
+  /*
+  1) Send a disconnect request.
+  2) Start a timer.
+  3) If a NACK is recieved resend the disconnect request.
+  4) If no NACK is received, terminate the connection.
+  5) Return a 0 on success, a 1 on failure.
+  */
 
-  buffer->id = packetNumber;
-  strcpy(buffer->data, data);
-  buffer->checksum = checksum;
-}
+  /*1) Send a disconnect request.*/
+  char dr[]="Disconnect Request";
+  int length = strlen(dr);
+  dr[length] = "\0";
+  strcpy(buffer->data, dr);
+  buffer->checksum = getChecksum(buffer->data);
+  sendMessage(int ACK, int socketfd, rtp *buffer, struct sockaddr_in *serverName);
 
-int clientSlidingWindows(int socketfd, rtp *buffer,
-                         struct sockaddr_in *serverName) {
+  /*Start timer (is this needed?!)*/
 
-  rtp packets[WINDOWSIZE];
-  int base = 0, nextPacket = 0, checksum;
-  time_t start, stop;
-  double timePassed;
-
-  while (1) {
-    if (nextPacket < (base + NUMBEROFPACKAGES)) {
-      if (nextPacket == base) {
-        start = clock();
-      }
-      for (int i = base; i < (base + WINDOWSIZE + 1); i++) {
-        makePacket(buffer, nextPacket, (packets[0]).data, checksum);
-        sendMessage(0, socketfd, buffer, serverName);
-      }
-    }
+  /*Check the recieved flag from the recieved message*/
+  while(1){
+  rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer);
+  //if(getChecksum(buffer->data)==buffer->checksum){
+  if(readFlag(buffer)==NACK)
+    sendMessage(int ACK, int socketfd, rtp *buffer, struct sockaddr_in *serverName);
+    /*Is a timer needed here?*/
+  else
+    break;
   }
+  /*Terminte the connection*/
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -203,7 +209,9 @@ int main(int argc, char *argv[]) {
 
     case OPENED:
 
-      clientSlidingWindows(socketfd, &buffer, &serverName);
+      if (opened == 1) {
+        state = CLOSE;
+      }
       break;
     case CLOSE:
       break;
