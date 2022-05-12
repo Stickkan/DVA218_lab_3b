@@ -20,7 +20,7 @@
 
 int createSocket(struct sockaddr_in *serverName, char *argv) {
 
-  int *dstHost = "127.0.0.1";
+  char *dstHost = "127.0.0.1";
 
   int socketfd;
   struct hostent *hostinfo;
@@ -95,7 +95,7 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
 int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int wait = 1, status;
-  time_t start, stop;
+  clock_t start, stop;
   double time_passed;
 
   start = clock();
@@ -114,7 +114,8 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       }
     }
 
-    stop = clock;
+    stop = clock();
+    
     time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
     if ((time_passed >= TIMEOUT) || wait == NACK) {
       sendMessage(NACK, socketfd, buffer, serverName);
@@ -159,12 +160,34 @@ void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
   buffer->checksum = checksum;
 }
 
+int getAckNumber(rtp * buffer){
+  int ackNumber = buffer->seq;
+  return ackNumber;
+}
+
+int packetInWindow(int ackNumber, int base){
+  if((ackNumber <= (base + WINDOWSIZE -1)) && (ackNumber >= base)){
+    return 1;
+  }
+  return 0;
+}
+
+int isTimeOut(clock_t start){
+  clock_t stop = clock();
+  double timePassed = (double)(stop-start)/CLOCKS_PER_SEC;
+  if(timePassed >= TIMEOUT){
+    return 1;
+  }
+  return 0;
+}
+
+
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
   rtp packets[WINDOWSIZE];
-  int base = 0, nextPacket = 0, checksum;
-  time_t start, stop;
+  int status, base = 0, nextPacket = 0, checksum, flag, ackNumber;
+  clock_t start, stop;
   double timePassed;
 
   while (1) {
@@ -175,7 +198,27 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       for (int i = base; i < (base + WINDOWSIZE + 1); i++) {
         makePacket(buffer, nextPacket, (packets[0]).data, checksum);
         sendMessage(0, socketfd, buffer, serverName);
+        nextPacket++;
       }
+    }
+    ioctl(socketfd, FIONREAD, &status);
+    if(status >=0){
+      rcvMessage(socketfd, serverName, buffer);
+       flag = readMessage(buffer);
+       ackNumber = getAckNumber(buffer);
+       if((flag == ACK) && packetInWindow(ackNumber,base)){
+         base = ackNumber;
+         if(base == nextPacket){
+           start = 0;
+         }
+         else {
+           start = clock();
+         }
+       }
+    }
+    int timeOut = isTimeOut(start);
+    if(timeOut ==1){
+      printf("Placeholder");
     }
   }
 }

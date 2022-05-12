@@ -11,6 +11,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
 
 
 // #define PORT 5555
