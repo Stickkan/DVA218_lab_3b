@@ -89,7 +89,11 @@ int readMessage(rtp *buffer) {
 /*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i headern. Jämför dem och returnerar 0 eller 1
 beroende på om de är samma eller inte.*/
 int isCorrupt(rtp *buffer) {
+<<<<<<< HEAD
   if(getChecksum(buffer->data)==buffer->checksum)
+=======
+  if(getChecksum(buffer->data)==buffer->crc)
+>>>>>>> 549396a9592d30ecf5c5caad49f9e60c845a8e9b
     return 0;  
   
   return 1;
