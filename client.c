@@ -1,3 +1,4 @@
+#include "getChecksum.c"
 #include "header.h"
 #include <asm-generic/ioctls.h>
 #include <errno.h>
@@ -18,9 +19,11 @@
 // #define messageLength 256
 // #define MAXMSG 512
 
+int getChecksum();
+
 int createSocket(struct sockaddr_in *serverName, char *argv) {
 
-  char *dstHost = "127.0.0.1";
+  int *dstHost = "127.0.0.1";
 
   int socketfd;
   struct hostent *hostinfo;
@@ -78,6 +81,7 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
 
   buffer->flags = flag;
   buffer->windowsize = WINDOWSIZE;
+  buffer->checksum = getChecksum(buffer->data);
   while (1) {
     int result =
         sendto(socketfd, buffer, sizeof(*buffer), 0,
@@ -115,7 +119,7 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
     }
 
     stop = clock();
-    
+
     time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
     if ((time_passed >= TIMEOUT) || wait == NACK) {
       sendMessage(NACK, socketfd, buffer, serverName);
@@ -155,32 +159,31 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
 void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
 
-  buffer->id = packetNumber;
+  buffer->seq = packetNumber;
   strcpy(buffer->data, data);
   buffer->checksum = checksum;
 }
 
-int getAckNumber(rtp * buffer){
+int getAckNumber(rtp *buffer) {
   int ackNumber = buffer->seq;
   return ackNumber;
 }
 
-int packetInWindow(int ackNumber, int base){
-  if((ackNumber <= (base + WINDOWSIZE -1)) && (ackNumber >= base)){
+int packetInWindow(int ackNumber, int base) {
+  if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base)) {
     return 1;
   }
   return 0;
 }
 
-int isTimeOut(clock_t start){
+int isTimeOut(clock_t start) {
   clock_t stop = clock();
-  double timePassed = (double)(stop-start)/CLOCKS_PER_SEC;
-  if(timePassed >= TIMEOUT){
+  double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
+  if (timePassed >= TIMEOUT) {
     return 1;
   }
   return 0;
 }
-
 
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
@@ -191,36 +194,42 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   double timePassed;
 
   while (1) {
-    if (nextPacket < (base + NUMBEROFPACKAGES)) {
+    if (nextPacket < (base + WINDOWSIZE)) {
       if (nextPacket == base) {
         start = clock();
       }
-      for (int i = base; i < (base + WINDOWSIZE + 1); i++) {
-        makePacket(buffer, nextPacket, (packets[0]).data, checksum);
-        sendMessage(0, socketfd, buffer, serverName);
-        nextPacket++;
+      if(((nextPacket - base)<= WINDOWSIZE) && nextPacket <= NUMBEROFPACKAGES-1) {
+        //for (int i = base; i < (base + WINDOWSIZE); i++) {
+          makePacket(buffer, nextPacket, (packets[0]).data, checksum);
+          sendMessage(0, socketfd, buffer, serverName);
+          nextPacket++;
+        //}
       }
     }
     ioctl(socketfd, FIONREAD, &status);
-    if(status >=0){
+    if (status >= 0) {
       rcvMessage(socketfd, serverName, buffer);
-       flag = readMessage(buffer);
-       ackNumber = getAckNumber(buffer);
-       if((flag == ACK) && packetInWindow(ackNumber,base)){
-         base = ackNumber;
-         if(base == nextPacket){
-           start = 0;
-         }
-         else {
-           start = clock();
-         }
-       }
+      flag = readMessage(buffer);
+      ackNumber = getAckNumber(buffer);
+      if ((flag == ACK) && packetInWindow(ackNumber, base)) {
+        base = ackNumber;
+        if (base == nextPacket) {
+          start = 0;
+        } else {
+          start = clock();
+        }
+      }
     }
     int timeOut = isTimeOut(start);
-    if(timeOut ==1){
+    if (timeOut == 1) {
       printf("Placeholder");
     }
+    if((base) == PACKETSTOSEND-1){
+      break;
+    }
   }
+  printf("All packages sent and ACK'd!\n");
+  return 1;
 }
 
 int main(int argc, char *argv[]) {
@@ -239,14 +248,14 @@ int main(int argc, char *argv[]) {
       start = clientStart(socketfd, &buffer, &serverName);
       if (start == 1) {
         printf("Opened!\n");
-        state = opened;
-        // state = OPENED;
+        state = OPENED;
       }
       break;
 
     case OPENED:
 
       clientSlidingWindows(socketfd, &buffer, &serverName);
+      state = CLOSE;
       break;
     case CLOSE:
       break;

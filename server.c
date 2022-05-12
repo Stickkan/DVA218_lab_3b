@@ -10,15 +10,17 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "header.h"
 #include "getChecksum.c"
+#include "header.h"
 
 #define PORT 5555
 #define hostNameLength 50
 #define messageLength 256
 #define MAXMSG 512
+#define NUMBEROFPACKAGES 10
 
 int windowSize;
+int packageArray[NUMBEROFPACKAGES] = {0};
 
 int createSocket(struct sockaddr_in *clientName) {
 
@@ -86,12 +88,13 @@ int readMessage(rtp *buffer) {
   return flag;
 }
 
-/*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i headern. Jämför dem och returnerar 0 eller 1
-beroende på om de är samma eller inte.*/
+/*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i
+headern. Jämför dem och returnerar 0 eller 1 beroende på om de är samma eller
+inte.*/
 int isCorrupt(rtp *buffer) {
-  if(getChecksum(buffer->data)==buffer->checksum)
-    return 0;  
-  
+  if (getChecksum(buffer->data) == buffer->checksum)
+    return 0;
+
   return 1;
 }
 
@@ -185,7 +188,12 @@ void printMessage(rtp *buffer) {
   printf("Message received from client: %s\n", buffer->data);
 }
 
-int hasRightSeqNumber(rtp *buffer, int expectedSeqNumber) { return 1; }
+int wasReceived(rtp *buffer, int expectedSeqNumber) { 
+  
+  if(packageArray[expectedSeqNumber] == 1){
+    return 0;
+  }
+  return 1; }
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
@@ -195,16 +203,18 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
 
   while (1) {
     rcvMessage(socketfd, clientName, buffer);
-    if ((hasRightSeqNumber(buffer, expectedPackageNumber) == 1) &&
-        (isCorrupt) == 0) {
-      if (readMessage(buffer) == DR) {
+    if (readMessage(buffer) == DR) {
         printf("Disconnect request received from client!\n Initiating "
                "shutdown!\n");
         break;
       }
+    if ((wasReceived(buffer, expectedPackageNumber) == 1) &&
+        (isCorrupt(buffer)) == 0) {
+      
       if (readMessage(buffer) == 0) {
         printMessage(buffer);
       }
+      
       seqNumber = buffer->seq;
       memset(buffer, 0, sizeof(*buffer));
       buffer->seq = seqNumber;
