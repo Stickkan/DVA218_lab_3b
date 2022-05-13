@@ -22,7 +22,7 @@
 int windowSize;
 int packageArray[NUMBEROFPACKAGES] = {0};
 
-int createSocket(struct sockaddr_in *clientName) {
+int createSocketServer(struct sockaddr_in *clientName) {
 
   int socketfd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -188,7 +188,9 @@ int shouldTerminate(rtp *buffer) {
   if (readMessage(buffer) == DR) {
     printf("Disconnect request received from client!\n Initiating "
            "shutdown!\n");
+    return 1;
   }
+  return 0;
 }
 
 void sendNack(int socketfd ,rtp * buffer, struct sockaddr_in * clientName){
@@ -234,7 +236,7 @@ int main(int argc, char *argv[]) {
   rtp buffer;
   struct sockaddr_in clientName;
 
-  int socketfd = createSocket(&clientName);
+  int socketfd = createSocketServer(&clientName);
 
   if ((bindResult = bindSocket(socketfd, &clientName)) >= 0) {
 

@@ -1,5 +1,6 @@
 #include "getChecksum.c"
 #include "header.h"
+
 #include <asm-generic/ioctls.h>
 #include <errno.h>
 #include <netdb.h>
@@ -10,6 +11,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 #define PORT 5555
@@ -21,7 +23,7 @@
 
 int getChecksum();
 
-int createSocket(struct sockaddr_in *serverName, char *argv) {
+int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 
   int *dstHost = "127.0.0.1";
 
@@ -39,10 +41,13 @@ int createSocket(struct sockaddr_in *serverName, char *argv) {
 
   return socketfd;
 }
+
 int isCorrupt(rtp *buffer) {
-  printf("PLACEHOLDER");
+  if(getChecksum(buffer->data)==buffer->checksum)
+    return 0;
   return 0;
 }
+
 
 int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
 
@@ -166,6 +171,8 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   5) Return a 0 on success, a 1 on failure.
   */
 
+  int timer;
+
   /*1) Send a disconnect request.*/
   char dr[]="Disconnect Request";
   int length = strlen(dr);
@@ -174,7 +181,9 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   buffer->checksum = getChecksum(buffer->data);
   sendMessage(ACK, socketfd, buffer, serverName);
 
-  /*Start timer (is this needed?!) yes because we will terminate if we do not */
+  /*Start timer (is this needed?!) yes because we will terminate if we do not receive a NACK*/
+  clock_t start = clock();
+  timer = isTimeOut(start);
 
   /*Check the recieved flag from the recieved message*/
   while(1){
@@ -186,7 +195,7 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   else
     break;
   }
-  /*Terminte the connection*/
+  /*Terminte the connection => close socket*/
   return 0;
 }
 
@@ -203,18 +212,16 @@ int getAckNumber(rtp *buffer) {
 }
 
 int packetInWindow(int ackNumber, int base) {
-  if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base)) {
+  if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base))
     return 1;
-  }
   return 0;
 }
 
 int isTimeOut(clock_t start) {
   clock_t stop = clock();
-  double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
-  if (timePassed >= TIMEOUT) {
+  double timePassed = ((double)(stop - start)) / CLOCKS_PER_SEC;
+  if (timePassed >= TIMEOUT) 
     return 1;
-  }
   return 0;
 }
 
@@ -278,7 +285,7 @@ int main(int argc, char *argv[]) {
   struct sockaddr_in serverName;
   argv[1] = "localhost";
 
-  int socketfd = createSocket(&serverName, argv[1]);
+  int socketfd = createSocketClient(&serverName, argv[1]);
 
   while (1) {
 
