@@ -92,18 +92,18 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   dr[length] = '\0';
   strcpy(buffer->data, dr);
   buffer->checksum = getChecksum(buffer->data);
-  sendMessage(ACK, socketfd, buffer, serverName);
+  sendMessage(DR, socketfd, buffer, serverName);
 
   /*Start timer (is this needed?!) yes because we will terminate if we do not receive a NACK*/
   clock_t start = clock();
-  //timer = isTimeOut(start);
+  timer = isTimeOut(start, TIMEOUT_SERVER);
 
   /*Check the recieved flag from the recieved message*/
   while(1){
   rcvMessage(socketfd, serverName, buffer);
   //if(getChecksum(buffer->data)==buffer->checksum){
   if(readFlag(buffer)==NACK)
-    sendMessage(ACK, socketfd, buffer, serverName);
+    sendMessage(DR, socketfd, buffer, serverName);
     /*Is a timer needed here?*/
   else
     break;
