@@ -185,6 +185,13 @@ int isTimeOut(clock_t start) {
   return 0;
 }
 
+int isNextInWindow(int nextPacket, int base) {
+  if (nextPacket - base < WINDOWSIZE) {
+    return 1;
+  }
+  return 0;
+}
+
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
@@ -194,22 +201,21 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   double timePassed;
 
   while (1) {
-    if (nextPacket < (base + WINDOWSIZE)) {
+    if (isNextInWindow(nextPacket, base)) {
       if (nextPacket == base) {
         start = clock();
       }
-      if(((nextPacket - base)<= WINDOWSIZE) && nextPacket <= NUMBEROFPACKAGES-1) {
-        //for (int i = base; i < (base + WINDOWSIZE); i++) {
-          makePacket(buffer, nextPacket, (packets[0]).data, checksum);
-          sendMessage(0, socketfd, buffer, serverName);
-          nextPacket++;
-        //}
+      if (isNextInWindow(nextPacket, base) &&
+          nextPacket <= NUMBEROFPACKAGES - 1) {
+        makePacket(buffer, nextPacket, (packets[0]).data, checksum);
+        sendMessage(0, socketfd, buffer, serverName);
+        nextPacket++;
       }
     }
     ioctl(socketfd, FIONREAD, &status);
     if (status >= 0) {
       rcvMessage(socketfd, serverName, buffer);
-      flag = readMessage(buffer);
+      flag = readFlag(buffer);
       ackNumber = getAckNumber(buffer);
       if ((flag == ACK) && packetInWindow(ackNumber, base)) {
         base = ackNumber;
@@ -224,7 +230,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     if (timeOut == 1) {
       printf("Placeholder");
     }
-    if((base) == PACKETSTOSEND-1){
+    if ((base) == PACKETSTOSEND - 1) {
       break;
     }
   }

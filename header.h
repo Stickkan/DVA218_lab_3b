@@ -30,6 +30,7 @@
 #define NACK 8
 #define MAXMSG 512
 #define DR 9
+#define DATA 0
 
 #define PACKETSTOSEND 10
 

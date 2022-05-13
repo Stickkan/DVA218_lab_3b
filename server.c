@@ -117,18 +117,6 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   return 1;
 }
 
-// void *timeThread(int *timeout) {
-
-//   time_t stop, time_passed, start;
-//   start = clock();
-//   while (1) {
-//     stop = clock();
-//     time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
-//     if (time_passed >= TIMEOUT) {
-//       *timeout = 1;
-//     }
-//   }
-// }
 
 int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
@@ -147,8 +135,8 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       while (1) {
         rcvMessage(socketfd, clientName, buffer);
         windowSize = buffer->windowsize;
-        int read = readMessage(buffer);
-        if (!isCorrupt(buffer) && read == SYN) {
+        int flag = readFlag(buffer);
+        if (!isCorrupt(buffer) && flag == SYN) {
           sendMessage(SYNACK, socketfd, buffer, clientName);
           state = SYNACK;
           printf("Received SYN from client!\n");
@@ -188,12 +176,28 @@ void printMessage(rtp *buffer) {
   printf("Message received from client: %s\n", buffer->data);
 }
 
-int wasReceived(rtp *buffer, int expectedSeqNumber) { 
-  
-  if(packageArray[expectedSeqNumber] == 1){
+int wasReceived(rtp *buffer, int expectedSeqNumber) {
+
+  if (packageArray[expectedSeqNumber] == 1) {
     return 0;
   }
-  return 1; }
+  return 1;
+}
+
+int shouldTerminate(rtp *buffer) {
+  if (readMessage(buffer) == DR) {
+    printf("Disconnect request received from client!\n Initiating "
+           "shutdown!\n");
+  }
+}
+
+void sendNack(int socketfd ,rtp * buffer, struct sockaddr_in * clientName){
+  int seqNumber;
+  seqNumber = buffer->seq;
+      memset(buffer, 0, sizeof(*buffer));
+      buffer->seq = seqNumber;
+      sendMessage(NACK, socketfd, buffer, clientName);
+}
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
@@ -203,28 +207,23 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
 
   while (1) {
     rcvMessage(socketfd, clientName, buffer);
-    if (readMessage(buffer) == DR) {
-        printf("Disconnect request received from client!\n Initiating "
-               "shutdown!\n");
-        break;
-      }
+    if (shouldTerminate(buffer)) {
+      break;
+    }
     if ((wasReceived(buffer, expectedPackageNumber) == 1) &&
         (isCorrupt(buffer)) == 0) {
-      
-      if (readMessage(buffer) == 0) {
+
+      if (readFlag(buffer) == DATA) {
         printMessage(buffer);
       }
-      
+
       seqNumber = buffer->seq;
       memset(buffer, 0, sizeof(*buffer));
       buffer->seq = seqNumber;
       sendMessage(ACK, socketfd, buffer, clientName);
       expectedPackageNumber++;
     } else {
-      seqNumber = buffer->seq;
-      memset(buffer, 0, sizeof(*buffer));
-      buffer->seq = seqNumber;
-      sendMessage(NACK, socketfd, buffer, clientName);
+      sendNack(socketfd ,buffer, clientName);
     }
   }
   return 1;
