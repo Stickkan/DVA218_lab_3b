@@ -1,6 +1,5 @@
 #include "getChecksum.c"
 #include "header.h"
-
 #include <asm-generic/ioctls.h>
 #include <errno.h>
 #include <netdb.h>
@@ -11,7 +10,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <time.h>
 #include <unistd.h>
 
 #define PORT 5555
@@ -23,7 +21,7 @@
 
 int getChecksum();
 
-int createSocketClient(struct sockaddr_in *serverName, char *argv) {
+int createSocket(struct sockaddr_in *serverName, char *argv) {
 
   int *dstHost = "127.0.0.1";
 
@@ -41,13 +39,10 @@ int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 
   return socketfd;
 }
-
 int isCorrupt(rtp *buffer) {
-  if(getChecksum(buffer->data)==buffer->checksum)
-    return 0;
+  printf("PLACEHOLDER");
   return 0;
 }
-
 
 int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
 
@@ -162,43 +157,6 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   return 1;
 }
 
-int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
-  /*
-  1) Send a disconnect request.
-  2) Start a timer.
-  3) If a NACK is recieved resend the disconnect request.
-  4) If no NACK is received, terminate the connection.
-  5) Return a 0 on success, a 1 on failure.
-  */
-
-  int timer;
-
-  /*1) Send a disconnect request.*/
-  char dr[]="Disconnect Request";
-  int length = strlen(dr);
-  dr[length] = '\0';
-  strcpy(buffer->data, dr);
-  buffer->checksum = getChecksum(buffer->data);
-  sendMessage(ACK, socketfd, buffer, serverName);
-
-  /*Start timer (is this needed?!) yes because we will terminate if we do not receive a NACK*/
-  clock_t start = clock();
-  timer = isTimeOut(start);
-
-  /*Check the recieved flag from the recieved message*/
-  while(1){
-  rcvMessage(socketfd, serverName, buffer);
-  //if(getChecksum(buffer->data)==buffer->checksum){
-  if(readFlag(buffer)==NACK)
-    sendMessage(ACK, socketfd, buffer, serverName);
-    /*Is a timer needed here?*/
-  else
-    break;
-  }
-  /*Terminte the connection => close socket*/
-  return 0;
-}
-
 void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
 
   buffer->seq = packetNumber;
@@ -212,18 +170,31 @@ int getAckNumber(rtp *buffer) {
 }
 
 int packetInWindow(int ackNumber, int base) {
-  if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base))
+  if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base)) {
     return 1;
+  }
   return 0;
 }
 
-int isTimeOut(clock_t start) {
+int isTimeOut(clock_t start, int timeout_type) {
   clock_t stop = clock();
-  double timePassed = ((double)(stop - start)) / CLOCKS_PER_SEC;
-  if (timePassed >= TIMEOUT) 
-    return 1;
+  double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
+  if (timeout_type == TIMEOUT) {
+    if (timePassed >= TIMEOUT) {
+      return 1;
+    }
+  } else if (timeout_type == TIMEOUT_DR) {
+    if (timePassed >= TIMEOUT_DR) {
+      return 1;
+    }
+  } else if (timeout_type == TIMEOUT_ACK) {
+    if (timePassed >= TIMEOUT_ACK) {
+      return 1;
+    }
+  }
   return 0;
 }
+
 
 int isNextInWindow(int nextPacket, int base) {
   if (nextPacket - base < WINDOWSIZE) {
@@ -266,7 +237,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         }
       }
     }
-    int timeOut = isTimeOut(start);
+    int timeOut = isTimeOut(start,TIMEOUT_ACK);
     if (timeOut == 1) {
       printf("Placeholder");
     }
@@ -280,12 +251,12 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
 
 int main(int argc, char *argv[]) {
 
-  int state = START, start = 0, opened = 0, close = 0, bindResult, isClosed;
+  int state = START, start = 0, opened = 0, close = 0, bindResult;
   rtp buffer;
   struct sockaddr_in serverName;
   argv[1] = "localhost";
 
-  int socketfd = createSocketClient(&serverName, argv[1]);
+  int socketfd = createSocket(&serverName, argv[1]);
 
   while (1) {
 
@@ -304,7 +275,6 @@ int main(int argc, char *argv[]) {
       state = CLOSE;
       break;
     case CLOSE:
-      isClosed = clientTearDown(&buffer, socketfd, &serverName);
       break;
     default:
       state = START;

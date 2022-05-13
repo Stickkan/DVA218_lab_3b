@@ -22,7 +22,7 @@
 int windowSize;
 int packageArray[NUMBEROFPACKAGES] = {0};
 
-int createSocketServer(struct sockaddr_in *clientName) {
+int createSocket(struct sockaddr_in *clientName) {
 
   int socketfd = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -75,7 +75,10 @@ int readFlag(rtp *buffer) {
     return SYNACK;
   } else if (buffer->flags == SYN) {
     return SYN;
+  } else if (buffer->flags == DATA) {
+    return DATA;
   }
+
   return 0;
 }
 
@@ -116,7 +119,6 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   }
   return 1;
 }
-
 
 int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
@@ -193,21 +195,28 @@ int shouldTerminate(rtp *buffer) {
   return 0;
 }
 
-void sendNack(int socketfd ,rtp * buffer, struct sockaddr_in * clientName){
+void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   int seqNumber;
   seqNumber = buffer->seq;
-      memset(buffer, 0, sizeof(*buffer));
-      buffer->seq = seqNumber;
-      sendMessage(NACK, socketfd, buffer, clientName);
+  memset(buffer, 0, sizeof(*buffer));
+  buffer->seq = seqNumber;
+  sendMessage(NACK, socketfd, buffer, clientName);
 }
+
+int isTimeOut();
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
 
   int expectedPackageNumber = 0;
   int seqNumber;
-
+  clock_t serverStart = clock();
   while (1) {
+    if (isTimeOut(serverStart, TIMEOUT_SERVER)) {
+      printf("Server has not received messages for 1 minute. Closing "
+             "Connection!\n");
+      return 2;
+    }
     rcvMessage(socketfd, clientName, buffer);
     if (shouldTerminate(buffer)) {
       break;
@@ -225,18 +234,71 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       sendMessage(ACK, socketfd, buffer, clientName);
       expectedPackageNumber++;
     } else {
-      sendNack(socketfd ,buffer, clientName);
+      sendNack(socketfd, buffer, clientName);
     }
   }
+  printf("Teardown request received. Closing sequence initiated!\n");
   return 1;
 }
 
+int isDRACK(rtp *buffer) {
+  if (buffer->flags == DRACK) {
+    return 1;
+  }
+  return 0;
+}
+
+int isTimeOut(clock_t start, int timeout_type) {
+  clock_t stop = clock();
+  double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
+  if (timeout_type == TIMEOUT) {
+    if (timePassed >= TIMEOUT) {
+      return 1;
+    }
+  } else if (timeout_type == TIMEOUT_DR) {
+    if (timePassed >= TIMEOUT_DR) {
+      return 1;
+    }
+  } else if (timeout_type == TIMEOUT_ACK) {
+    if (timePassed >= TIMEOUT_ACK) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
+
+  clock_t startDR, stop, startACK;
+  double timePassed;
+  int status, flag;
+  startDR = clock();
+  while (1) {
+
+    sendMessage(DRACK, socketfd, buffer, clientName);
+    startACK = clock();
+    ioctl(socketfd, FIONREAD, &status);
+    if (status >= 0) {
+      rcvMessage(socketfd, clientName, buffer);
+      int flag = readFlag(buffer);
+    }
+    if ((isTimeOut(startACK, TIMEOUT_DR)) || flag == NACK) {
+      sendMessage(DRACK, socketfd, buffer, clientName);
+    }
+    if (isTimeOut(startDR, TIMEOUT_DR)) {
+      break;
+    }
+  }
+  printf("Server has close!\n");
+}
+
 int main(int argc, char *argv[]) {
-  int state = START, start = 0, opened = 0, close = 0, bindResult;
+  int state = START, start = 0, opened = 0, closed = 0, bindResult;
+  int teardown;
   rtp buffer;
   struct sockaddr_in clientName;
 
-  int socketfd = createSocketServer(&clientName);
+  int socketfd = createSocket(&clientName);
 
   if ((bindResult = bindSocket(socketfd, &clientName)) >= 0) {
 
@@ -260,6 +322,10 @@ int main(int argc, char *argv[]) {
         }
         break;
       case CLOSE:
+        teardown = serverTeardown(socketfd, &buffer, &clientName);
+        if ((teardown == 1) || teardown == 2) {
+          close(socketfd);
+        }
         break;
       default:
         state = START;
@@ -267,4 +333,5 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+  return 0;
 }
