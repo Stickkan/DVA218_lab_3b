@@ -1,5 +1,6 @@
 #include "getChecksum.c"
 #include "header.h"
+#include "helpFuncClient.c"
 
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
