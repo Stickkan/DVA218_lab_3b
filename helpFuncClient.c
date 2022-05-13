@@ -45,6 +45,9 @@ int readFlag(rtp *buffer) {
   } else if (buffer->flags == SYN) {
     return SYN;
   }
+  else if(buffer->flags == DRACK){
+    return DRACK;
+  }
   return 0;
 }
 

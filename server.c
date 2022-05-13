@@ -113,7 +113,7 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     sendMessage(DRACK, socketfd, buffer, clientName);
     startACK = clock();
     ioctl(socketfd, FIONREAD, &status);
-    if (status >= 0) {
+    if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
     }
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
 
     printf("Waiting for client to connect: \n");
 
-    while (1) {
+    while (state!=99) {
 
       switch (state) {
       case START:
@@ -161,7 +161,10 @@ int main(int argc, char *argv[]) {
         teardown = serverTeardown(socketfd, &buffer, &clientName);
         if ((teardown == 1) || teardown == 2) {
           close(socketfd);
+          printf("Server has closed!\n");
+          state = 99;
         }
+        
         break;
       default:
         state = START;

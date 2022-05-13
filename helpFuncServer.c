@@ -58,6 +58,8 @@ int readFlag(rtp *buffer) {
     return SYN;
   } else if (buffer->flags == DATA) {
     return DATA;
+  } else if (buffer->flags == DR) {
+    return DR;
   }
 
   return 0;
@@ -113,7 +115,8 @@ int wasReceived(rtp *buffer, int expectedSeqNumber) {
 }
 
 int shouldTerminate(rtp *buffer) {
-  if (readMessage(buffer) == DR) {
+  int flag = readFlag(buffer);
+  if (flag == DR) {
     printf("Disconnect request received from client!\n Initiating "
            "shutdown!\n");
     return 1;

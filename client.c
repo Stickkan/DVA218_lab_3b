@@ -105,7 +105,7 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   if(readFlag(buffer)==NACK)
     sendMessage(DR, socketfd, buffer, serverName);
     /*Is a timer needed here?*/
-  else
+  else if(readFlag(buffer)==DRACK)
     break;
   }
   /*Terminte the connection => close socket*/
@@ -115,13 +115,14 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
 int main(int argc, char *argv[]) {
 
   int state = START, start = 0, opened = 0, close = 0, bindResult;
+  int teardown;
   rtp buffer;
   struct sockaddr_in serverName;
   argv[1] = "localhost";
 
   int socketfd = createSocketClient(&serverName, argv[1]);
 
-  while (1) {
+  while (state!= 99) {
 
     switch (state) {
     case START:
@@ -138,6 +139,9 @@ int main(int argc, char *argv[]) {
       state = CLOSE;
       break;
     case CLOSE:
+      teardown = clientTearDown(&buffer, socketfd, &serverName);   
+      printf("Client has disconnected from server!\n");
+      state = 99;
       break;
     default:
       state = START;
