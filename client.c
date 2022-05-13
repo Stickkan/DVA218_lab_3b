@@ -157,6 +157,39 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   return 1;
 }
 
+int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
+  /*
+  1) Send a disconnect request.
+  2) Start a timer.
+  3) If a NACK is recieved resend the disconnect request.
+  4) If no NACK is received, terminate the connection.
+  5) Return a 0 on success, a 1 on failure.
+  */
+
+  /*1) Send a disconnect request.*/
+  char dr[]="Disconnect Request";
+  int length = strlen(dr);
+  dr[length] = '\0';
+  strcpy(buffer->data, dr);
+  buffer->checksum = getChecksum(buffer->data);
+  sendMessage(ACK, socketfd, buffer, serverName);
+
+  /*Start timer (is this needed?!) yes because we will terminate if we do not */
+
+  /*Check the recieved flag from the recieved message*/
+  while(1){
+  rcvMessage(socketfd, serverName, buffer);
+  //if(getChecksum(buffer->data)==buffer->checksum){
+  if(readFlag(buffer)==NACK)
+    sendMessage(ACK, socketfd, buffer, serverName);
+    /*Is a timer needed here?*/
+  else
+    break;
+  }
+  /*Terminte the connection*/
+  return 0;
+}
+
 void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
 
   buffer->seq = packetNumber;
@@ -240,7 +273,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
 
 int main(int argc, char *argv[]) {
 
-  int state = START, start = 0, opened = 0, close = 0, bindResult;
+  int state = START, start = 0, opened = 0, close = 0, bindResult, isClosed;
   rtp buffer;
   struct sockaddr_in serverName;
   argv[1] = "localhost";
@@ -264,6 +297,7 @@ int main(int argc, char *argv[]) {
       state = CLOSE;
       break;
     case CLOSE:
+      isClosed = clientTearDown(&buffer, socketfd, &serverName);
       break;
     default:
       state = START;
