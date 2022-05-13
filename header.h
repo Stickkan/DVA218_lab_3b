@@ -11,6 +11,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <sys/ioctl.h>
 
 
 // #define PORT 5555
@@ -28,6 +30,7 @@
 #define NACK 8
 #define MAXMSG 512
 #define DR 9
+#define DATA 0
 
 #define PACKETSTOSEND 10
 
