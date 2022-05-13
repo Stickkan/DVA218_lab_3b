@@ -1,6 +1,6 @@
 #include "header.h"
 
-int createSocket(struct sockaddr_in *serverName, char *argv) {
+int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 
   int *dstHost = "127.0.0.1";
 
@@ -148,7 +148,6 @@ int isTimeOut(clock_t start, int timeout_type) {
   }
   return 0;
 }
-
 
 int isNextInWindow(int nextPacket, int base) {
   if (nextPacket - base < WINDOWSIZE) {
