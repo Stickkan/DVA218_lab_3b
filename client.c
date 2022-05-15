@@ -71,7 +71,9 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     }
     int timeOut = isTimeOut(start, TIMEOUT_ACK);
     if (timeOut == 1) {
-      printf("Placeholder");
+      for(int i = base; i<(base + WINDOWSIZE); i++){
+        sendMessage(0, socketfd, &(packets[i]), serverName);
+      }
     }
     if ((base) == PACKETSTOSEND - 1) {
       break;
