@@ -9,7 +9,8 @@
 #define NUMBEROFPACKAGES 10
 
 int windowSize;
-//int packageArray[NUMBEROFPACKAGES] = {0};
+int clientID;
+// int packageArray[NUMBEROFPACKAGES] = {0};
 
 int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
@@ -27,9 +28,11 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     case SYN:
       while (1) {
         rcvMessage(socketfd, clientName, buffer);
+        clientID = buffer->id;
         windowSize = buffer->windowsize;
         int flag = readFlag(buffer);
         if (!isCorrupt(buffer) && flag == SYN) {
+          buffer->id = clientID;
           sendMessage(SYNACK, socketfd, buffer, clientName);
           state = SYNACK;
           printf("Received SYN from client!\n");
@@ -51,6 +54,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
         stop = clock();
         time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
         if ((time_passed >= TIMEOUT) || wait == NACK) {
+          buffer->id = clientID;
           sendMessage(SYNACK, socketfd, buffer, clientName);
           start = clock();
         }
@@ -62,7 +66,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       break;
     }
   }
-  printf("Connection established with client!\n");
+  printf("Connection established with client %d!\n", clientID);
   return 1;
 }
 
@@ -92,13 +96,14 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       seqNumber = buffer->seq;
       memset(buffer, 0, sizeof(*buffer));
       buffer->seq = seqNumber;
+      buffer->id = clientID;
       sendMessage(ACK, socketfd, buffer, clientName);
       expectedPackageNumber++;
     } else {
       sendNack(socketfd, buffer, clientName);
     }
   }
-  printf("Teardown request received. Closing sequence initiated!\n");
+  // printf("Teardown request received. Closing sequence initiated!\n");
   return 1;
 }
 
@@ -108,23 +113,25 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   double timePassed;
   int status, flag;
   startDR = clock();
+  buffer->id = clientID;
+  sendMessage(DRACK, socketfd, buffer, clientName);
+  startACK = clock();
   while (1) {
 
-    sendMessage(DRACK, socketfd, buffer, clientName);
-    startACK = clock();
     ioctl(socketfd, FIONREAD, &status);
     if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
     }
     if ((isTimeOut(startACK, TIMEOUT_DR)) || flag == NACK) {
+      buffer->id = clientID;
       sendMessage(DRACK, socketfd, buffer, clientName);
     }
-    if (isTimeOut(startDR, TIMEOUT_DR)) {
+    if (isTimeOut(startDR, TIMEOUT_SERVER)) {
       break;
     }
   }
-  printf("Server has close!\n");
+  printf("Server has closed!\n");
   return 1;
 }
 
@@ -140,7 +147,7 @@ int main(int argc, char *argv[]) {
 
     printf("Waiting for client to connect: \n");
 
-    while (state!=99) {
+    while (state != 99) {
 
       switch (state) {
       case START:
@@ -164,7 +171,7 @@ int main(int argc, char *argv[]) {
           printf("Server has closed!\n");
           state = 99;
         }
-        
+
         break;
       default:
         state = START;

@@ -1,5 +1,23 @@
 #include "header.h"
 
+int createRandomID(void){
+  srand(clock());
+  int integer = rand() %1000;
+  return integer;
+}
+
+rtp * createPackages(rtp * packages, int windowSize, int clientID){
+  for(int i = 0; i<NUMBEROFPACKAGES; i++){
+    *(packages[i]).data = i*100;
+    (packages[i]).id = clientID;
+    (packages[i]).checksum = getChecksum(&(packages[i]).data);
+    (packages[i]).seq = i;
+    (packages[i]).flags = 0;
+    (packages[i]).windowsize = windowSize;  
+  }
+  return packages;
+}
+
 int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 
   int *dstHost = "127.0.0.1";

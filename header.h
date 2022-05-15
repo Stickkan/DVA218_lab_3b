@@ -45,7 +45,7 @@ typedef struct rtp_struct{
     int seq;
     int windowsize;
     int checksum;
-    char data[messageLength];
+    char data[messageLength]; //
 }rtp;
 
 /*---------------Declaration of all functions------------------*/
@@ -99,7 +99,7 @@ int bindSocket(int socketfd, struct sockaddr_in *clientName);
 int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName);
 
 /*Prints a message to the user*/
-void printMessage(rtp *buffer);
+void printMessage(rtp * buffer);
 
 /*Sends a NACK*/
 void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName);

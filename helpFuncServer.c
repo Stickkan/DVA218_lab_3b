@@ -104,7 +104,7 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
 }
 
 void printMessage(rtp *buffer) {
-  printf("Message received from client: %s\n", buffer->data);
+  printf("Message received from client %d: %s\n", buffer->id, buffer->data);
 }
 
 int wasReceived(rtp *buffer, int expectedSeqNumber) {
@@ -152,6 +152,11 @@ int isTimeOut(clock_t start, int timeout_type) {
     }
   } else if (timeout_type == TIMEOUT_ACK) {
     if (timePassed >= TIMEOUT_ACK) {
+      return 1;
+    }
+
+  } else if (timeout_type == TIMEOUT_SERVER) {
+    if (timePassed >= TIMEOUT_SERVER) {
       return 1;
     }
   }

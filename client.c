@@ -2,6 +2,8 @@
 #include "header.h"
 #include "helpFuncClient.c"
 
+int clientID;
+
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int starting = 1, state = INIT, recvResult, wait = 1, timeout = 0, sendR;
@@ -12,7 +14,8 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   while (starting) {
     switch (state) {
     case INIT:
-
+      buffer->id = createRandomID();
+      clientID = buffer->id;
       sendR = sendMessage(SYN, socketfd, buffer, serverName);
       if (sendR == 1) {
         state = SYNACK;
@@ -26,13 +29,15 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       break;
     }
   }
+  printf("Client ID: %d\n", clientID);
   return 1;
 }
 
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
-  rtp packets[WINDOWSIZE];
+  rtp packets[NUMBEROFPACKAGES];
+  createPackages(packets, WINDOWSIZE, clientID);
   int status, base = 0, nextPacket = 0, checksum, flag, ackNumber;
   clock_t start, stop;
   double timePassed;
@@ -44,13 +49,14 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       }
       if (isNextInWindow(nextPacket, base) &&
           nextPacket <= NUMBEROFPACKAGES - 1) {
-        makePacket(buffer, nextPacket, (packets[0]).data, checksum);
-        sendMessage(0, socketfd, buffer, serverName);
+        // makePacket(buffer, nextPacket, (packets[0]).data, checksum);
+        // buffer->id = clientID;
+        sendMessage(0, socketfd, &(packets[nextPacket]), serverName);
         nextPacket++;
       }
     }
     ioctl(socketfd, FIONREAD, &status);
-    if (status >= 0) {
+    if (status > 0) {
       rcvMessage(socketfd, serverName, buffer);
       flag = readFlag(buffer);
       ackNumber = getAckNumber(buffer);
@@ -92,6 +98,7 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   dr[length] = '\0';
   strcpy(buffer->data, dr);
   buffer->checksum = getChecksum(buffer->data);
+  buffer->id = clientID;
   sendMessage(DR, socketfd, buffer, serverName);
 
   /*Start timer (is this needed?!) yes because we will terminate if we do not receive a NACK*/
@@ -102,9 +109,11 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   while(1){
   rcvMessage(socketfd, serverName, buffer);
   //if(getChecksum(buffer->data)==buffer->checksum){
-  if(readFlag(buffer)==NACK)
+  if(readFlag(buffer)==NACK){
+    buffer->id = clientID;
     sendMessage(DR, socketfd, buffer, serverName);
     /*Is a timer needed here?*/
+    }
   else if(readFlag(buffer)==DRACK)
     break;
   }
