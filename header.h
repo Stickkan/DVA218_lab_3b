@@ -48,7 +48,8 @@ typedef struct rtp_struct{
     char data[messageLength]; //
 }rtp;
 
-/*---------------Declaration of all functions------------------*/
+/*---------------Declaration of all functions---------
+---------*/
 
 /*-------------------Functions in client.c---------------------*/
 

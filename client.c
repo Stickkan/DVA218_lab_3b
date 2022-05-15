@@ -69,7 +69,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         }
       }
     }
-    int timeOut = isTimeOut(start,TIMEOUT_ACK);
+    int timeOut = isTimeOut(start, TIMEOUT_ACK);
     if (timeOut == 1) {
       printf("Placeholder");
     }
@@ -81,7 +81,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   return 1;
 }
 
-int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
+int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
   /*
   1) Send a disconnect request.
   2) Start a timer.
@@ -93,7 +93,7 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   int timer;
 
   /*1) Send a disconnect request.*/
-  char dr[]= "Disconnect Request";
+  char dr[] = "Disconnect Request";
   int length = strlen(dr);
   dr[length] = '\0';
   strcpy(buffer->data, dr);
@@ -101,21 +101,23 @@ int clientTearDown(rtp* buffer, int socketfd, struct sockaddr_in* serverName){
   buffer->id = clientID;
   sendMessage(DR, socketfd, buffer, serverName);
 
-  /*Start timer (is this needed?!) yes because we will terminate if we do not receive a NACK*/
+  /*Start timer (is this needed?!) yes because we will terminate if we do not
+   * receive a NACK*/
   clock_t start = clock();
   timer = isTimeOut(start, TIMEOUT_SERVER);
 
   /*Check the recieved flag from the recieved message*/
-  while(1){
-  rcvMessage(socketfd, serverName, buffer);
-  //if(getChecksum(buffer->data)==buffer->checksum){
-  if(readFlag(buffer)==NACK){
-    buffer->id = clientID;
-    sendMessage(DR, socketfd, buffer, serverName);
-    /*Is a timer needed here?*/
+  while (1) {
+    rcvMessage(socketfd, serverName, buffer);
+    // if(getChecksum(buffer->data)==buffer->checksum){
+    if (readFlag(buffer) == NACK) {
+      buffer->id = clientID;
+      sendMessage(DR, socketfd, buffer, serverName);
+      /*Is a timer needed here?*/
+    } else if (readFlag(buffer) == DRACK) {
+      sendMessage(ACK, socketfd, buffer, serverName);
+      break;
     }
-  else if(readFlag(buffer)==DRACK)
-    break;
   }
   /*Terminte the connection => close socket*/
   return 0;
@@ -131,7 +133,7 @@ int main(int argc, char *argv[]) {
 
   int socketfd = createSocketClient(&serverName, argv[1]);
 
-  while (state!= 99) {
+  while (state != 99) {
 
     switch (state) {
     case START:
@@ -148,7 +150,7 @@ int main(int argc, char *argv[]) {
       state = CLOSE;
       break;
     case CLOSE:
-      teardown = clientTearDown(&buffer, socketfd, &serverName);   
+      teardown = clientTearDown(&buffer, socketfd, &serverName);
       printf("Client has disconnected from server!\n");
       state = 99;
       break;

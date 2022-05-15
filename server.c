@@ -122,7 +122,11 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
+      if (flag == ACK) {
+        break;
+      }
     }
+
     if ((isTimeOut(startACK, TIMEOUT_DR)) || flag == NACK) {
       buffer->id = clientID;
       sendMessage(DRACK, socketfd, buffer, clientName);
