@@ -43,7 +43,7 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
   int recvResult = recvfrom(socketfd, buffer, MAXMSG, MSG_WAITALL,
                             (struct sockaddr *)clientName, &socklen);
   /*Insert makeCorrupt()*/
-  ret_makeCorr = makeCorrupt(buffer);
+  //ret_makeCorr = makeCorrupt(buffer);
   if (recvResult < 0) {
     printf("Could not recieve message!\n");
   }
@@ -52,7 +52,7 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
 
 int readFlag(rtp *buffer) {
 
-  int ret_makeCorr = makeCorrupt(buffer);
+  //int ret_makeCorr = makeCorrupt(buffer);
 
   if (buffer->flags == ACK) {
     return ACK;
@@ -85,7 +85,7 @@ inte.*/
 int isCorrupt(rtp *buffer) {
   if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
-
+  printCorrupt(buffer->flags, buffer->seq);
   return 1;
 }
 
@@ -96,19 +96,18 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   buffer->flags = flag;
   buffer->checksum = getChecksum(buffer->data);
 
-  while (1) {
-    int result = makeCorrupt(buffer);
-    if (result < 0){
-      printLost(flag, correctSeqNumb);
-      return 0;
-    }
-    else{
-      result = sendto(socketfd, buffer, sizeof(*buffer), 0,
-                      (const struct sockaddr *)clientName, sizeof(*clientName));
-       if (result < 0)
-          printf("Error! The sendto() didn't return correct value.\n");
-    }
+  int result = makeCorrupt(buffer);
+  if (result < 0) {
+    printLost(flag, correctSeqNumb);
+    return 0;
+  } else {
+    result = sendto(socketfd, buffer, sizeof(*buffer), 0,
+                    (const struct sockaddr *)clientName, sizeof(*clientName));
+    if (result < 0)
+      printf("Error! The sendto() didn't return correct value.\n");
+    return 0;
   }
+
   return 1;
 }
 
@@ -133,7 +132,8 @@ int shouldTerminate(rtp *buffer) {
   return 0;
 }
 
-void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName, int seq) {
+void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName,
+              int seq) {
   int seqNumber;
   seqNumber = buffer->seq;
   memset(buffer, 0, sizeof(*buffer));
@@ -182,7 +182,7 @@ int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
 
-  srand(time(0));
+  srand(clock());
 
   errorRate = rand() % 10;
 
@@ -190,14 +190,18 @@ int makeCorrupt(rtp *buffer) {
    * (|| errorRate == x%10).*/
   if (errorRate == 2) {
     /*for checksum*/
+     printf("Modified checksum %d (Client)\n", buffer->flags);
     buffer->checksum = (rand() % 255);
   }
   if (errorRate == 1) {
+    printf("Modified flag %d on package %d (Client)\n", buffer->flags,
+           buffer->seq);
     /*Corrupt the ACK and or SYN and or DR*/
     buffer->flags = 64;
   }
   if (errorRate == 8) {
-    buffer->seq = 132;
+    printf("Modified seq on package with flag %d (Client)\n", buffer->flags);
+    buffer->seq = rand()%10;
   }
   if (errorRate == 5) {
     /*Make sure that the return value automatically makes the sendMessage not
@@ -212,29 +216,56 @@ int makeCorrupt(rtp *buffer) {
   return 1;
 }
 
-void printLost(int flag, int seqNumb){
-int state;
-switch(state){
-    case ACK:
+void printLost(int flag, int seqNumb) {
+  int state;
+  switch (state) {
+  case ACK:
     printf("ACK of package %d lost! \n", seqNumb);
     break;
-    case SYN:
+  case SYN:
     printf("SYN lost!\n");
     break;
-    case SYNACK:
+  case SYNACK:
     printf("SYNACK lost!\n");
     break;
-    case DR:
+  case DR:
     printf("DR lost!\n");
     break;
-    case DRACK:
+  case DRACK:
     printf("DRACK lost!\n");
     break;
-    case DATA: 
+  case DATA:
     printf("Datapackage nr: %d lost!\n", seqNumb);
     break;
-    default: 
+  default:
     state = flag;
     break;
+  }
 }
+
+void printCorrupt(int flag, int seqNumb) {
+  int state;
+  switch (state) {
+  case ACK:
+    printf("ACK of package %d corrupt! \n", seqNumb);
+    break;
+  case SYN:
+    printf("SYN corrupt!\n");
+    break;
+  case SYNACK:
+    printf("SYNACK corrupt!\n");
+    break;
+  case DR:
+    printf("DR corrupt!\n");
+    break;
+  case DRACK:
+    printf("DRACK corrupt!\n");
+    break;
+  case DATA:
+    printf("Datapackage nr: %d corrupt!\n", seqNumb);
+    break;
+  default:
+    state = flag;
+    break;
+  }
 }

@@ -68,7 +68,8 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
           start = clock();
         }
       }
-      /*Here we need a function that reads an ACK from the client. If no ACK is received resend SYNACK.*/
+      /*Here we need a function that reads an ACK from the client. If no ACK is
+       * received resend SYNACK.*/
       printf("Received ACK From client!\n");
       starting = 0;
       break;
@@ -93,13 +94,6 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       return 2;
     }
     rcvMessage(socketfd, clientName, buffer);
-    if (buffer->flags == DR) {
-      if (test == 0) {
-        buffer->checksum = 999;
-        test++;
-      }
-      printf("Defgb");
-    }
 
     if (shouldTerminate(buffer)) {
       break;
@@ -120,10 +114,12 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       sendMessage(ACK, socketfd, buffer, clientName);
 
       expectedPackageNumber++;
-    } else if (wasReceived(buffer, buffer->seq)) {
-      sendMessage(ACK, socketfd, buffer, clientName);
+      // wasReceived(buffer, buffer->seq)
     } else if (isCorrupt(buffer)) {
       sendNack(socketfd, buffer, clientName, seqNumber);
+    } else if (buffer->seq < expectedPackageNumber) {
+      printf("Received duplicate. Resending ACK %d!\n", buffer->seq);
+      sendMessage(ACK, socketfd, buffer, clientName);
     }
   }
   // printf("Teardown request received. Closing sequence initiated!\n");

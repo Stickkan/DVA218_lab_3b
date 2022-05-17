@@ -133,4 +133,6 @@ int makeCorrupt(rtp* buffer);
 
 /*Prints what the error is*/
 void printLost(int flag, int seqNumb);
+
+void printCorrupt(int flag, int seqNumb);
 #endif
