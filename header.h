@@ -32,8 +32,8 @@
 #define DATA 0
 #define DRACK 11
 #define TIMEOUT_ACK 1
-#define TIMEOUT_DR 30
-#define TIMEOUT_SERVER 60
+#define TIMEOUT_DR 1
+#define TIMEOUT_SERVER 30
 #define _XOPEN_SOURCE_EXTENDED 1
 #define PACKETSTOSEND 10
 #define WINDOWSIZE 3
@@ -103,7 +103,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName);
 void printMessage(rtp * buffer);
 
 /*Sends a NACK*/
-void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName);
+void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName, int seq);
 
 /*-------------Functions in client.c and server.c---------------*/
 

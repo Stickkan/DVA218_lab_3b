@@ -20,7 +20,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   pthread_t timeThread;
 
   while (starting) {
-
+    int test = 0;
     // recvResult = rcvMessage(socketfd, clientName, buffer);
     // state = readFlag(buffer);
 
@@ -31,9 +31,13 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
         clientID = buffer->id;
         windowSize = buffer->windowsize;
         int flag = readFlag(buffer);
+
         if (!isCorrupt(buffer) && flag == SYN) {
           buffer->id = clientID;
+
           sendMessage(SYNACK, socketfd, buffer, clientName);
+
+          test = 0;
           state = SYNACK;
           printf("Received SYN from client!\n");
           break;
@@ -43,13 +47,18 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     case SYNACK:
       start = clock();
       int status;
-      while (wait != ACK) {
+      int flag;
+      while (1) {
         ioctl(socketfd, FIONREAD, &status);
-        if (status >= 0) {
+        if (status > 0) {
           wait = rcvMessage(socketfd, clientName, buffer);
           if (wait > 0) {
-            wait = readMessage(buffer);
+            flag = readFlag(buffer);
           }
+        }
+        if ((flag == ACK) && !isCorrupt(buffer)) {
+
+          break;
         }
         stop = clock();
         time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
@@ -72,7 +81,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
-
+  int test = 0;
   int expectedPackageNumber = 0;
   int seqNumber;
   clock_t serverStart = clock();
@@ -83,11 +92,20 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       return 2;
     }
     rcvMessage(socketfd, clientName, buffer);
+    if (buffer->flags == DR) {
+      if (test == 0) {
+        buffer->checksum = 999;
+        test++;
+      }
+      printf("Defgb");
+    }
+
     if (shouldTerminate(buffer)) {
       break;
     }
-    if ((wasReceived(buffer, expectedPackageNumber) == 1) &&
-        (isCorrupt(buffer)) == 0) {
+
+    //(wasReceived(buffer, expectedPackageNumber) == 1
+    if ((buffer->seq == expectedPackageNumber) && (isCorrupt(buffer) == 0)) {
 
       if (readFlag(buffer) == DATA) {
         printMessage(buffer);
@@ -97,10 +115,14 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       memset(buffer, 0, sizeof(*buffer));
       buffer->seq = seqNumber;
       buffer->id = clientID;
+
       sendMessage(ACK, socketfd, buffer, clientName);
+
       expectedPackageNumber++;
-    } else {
-      sendNack(socketfd, buffer, clientName);
+    } else if (wasReceived(buffer, buffer->seq)) {
+      sendMessage(ACK, socketfd, buffer, clientName);
+    } else if (isCorrupt(buffer)) {
+      sendNack(socketfd, buffer, clientName, seqNumber);
     }
   }
   // printf("Teardown request received. Closing sequence initiated!\n");
@@ -114,6 +136,7 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   int status, flag;
   startDR = clock();
   buffer->id = clientID;
+
   sendMessage(DRACK, socketfd, buffer, clientName);
   startACK = clock();
   while (1) {
@@ -122,7 +145,7 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
-      if (flag == ACK) {
+      if ((flag == ACK) && !isCorrupt(buffer)) {
         break;
       }
     }
@@ -157,7 +180,6 @@ int main(int argc, char *argv[]) {
       case START:
         start = serverStart(socketfd, &buffer, &clientName);
         if (start == 1) {
-          printf("Test\n");
           state = OPENED;
         }
         break;

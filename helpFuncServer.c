@@ -89,6 +89,8 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
 
   buffer->windowsize = windowSize;
   buffer->flags = flag;
+  buffer->checksum = getChecksum(buffer->data);
+
   while (1) {
     int result =
         sendto(socketfd, buffer, sizeof(*buffer), 0,
@@ -116,7 +118,7 @@ int wasReceived(rtp *buffer, int expectedSeqNumber) {
 
 int shouldTerminate(rtp *buffer) {
   int flag = readFlag(buffer);
-  if (flag == DR) {
+  if ((flag == DR) && !isCorrupt(buffer)) {
     printf("Disconnect request received from client!\n Initiating "
            "shutdown!\n");
     return 1;
@@ -124,11 +126,10 @@ int shouldTerminate(rtp *buffer) {
   return 0;
 }
 
-void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
-  int seqNumber;
-  seqNumber = buffer->seq;
+void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName, int seq) {
+ 
   memset(buffer, 0, sizeof(*buffer));
-  buffer->seq = seqNumber;
+  buffer->seq = seq;
   sendMessage(NACK, socketfd, buffer, clientName);
 }
 

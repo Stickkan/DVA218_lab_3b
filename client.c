@@ -17,9 +17,8 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       buffer->id = createRandomID();
       clientID = buffer->id;
       sendR = sendMessage(SYN, socketfd, buffer, serverName);
-      if (sendR == 1) {
-        state = SYNACK;
-      }
+      state = SYNACK;
+
       break;
     case SYNACK:
       wait_SYNACK(socketfd, buffer, serverName);
@@ -41,6 +40,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   int status, base = 0, nextPacket = 0, checksum, flag, ackNumber;
   clock_t start, stop;
   double timePassed;
+  int test = 0;
 
   while (1) {
     if (isNextInWindow(nextPacket, base)) {
@@ -60,6 +60,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       rcvMessage(socketfd, serverName, buffer);
       flag = readFlag(buffer);
       ackNumber = getAckNumber(buffer);
+
       if ((flag == ACK) && packetInWindow(ackNumber, base)) {
         base = ackNumber;
         if (base == nextPacket) {
@@ -68,13 +69,21 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
           start = clock();
         }
       }
+
+      if (flag == SYNACK) {
+        sendMessage(ACK, socketfd, buffer, serverName);
+      }
     }
     int timeOut = isTimeOut(start, TIMEOUT_ACK);
-    if (timeOut == 1) {
-      for(int i = base; i<(base + WINDOWSIZE); i++){
+    //
+    if ((timeOut == 1) || ((flag == NACK) && !isCorrupt(buffer))) {
+      //
+      start = clock();
+      for (int i = base; i < (nextPacket); i++) {
         sendMessage(0, socketfd, &(packets[i]), serverName);
       }
     }
+
     if ((base) == PACKETSTOSEND - 1) {
       break;
     }
@@ -93,6 +102,8 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
   */
 
   int timer;
+  int status;
+  int test = 0;
 
   /*1) Send a disconnect request.*/
   char dr[] = "Disconnect Request";
@@ -106,17 +117,23 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
   /*Start timer (is this needed?!) yes because we will terminate if we do not
    * receive a NACK*/
   clock_t start = clock();
-  timer = isTimeOut(start, TIMEOUT_SERVER);
 
   /*Check the recieved flag from the recieved message*/
   while (1) {
-    rcvMessage(socketfd, serverName, buffer);
+
+    timer = isTimeOut(start, TIMEOUT_DR);
+    ioctl(socketfd, FIONREAD, &status);
+    if (status > 0) {
+      rcvMessage(socketfd, serverName, buffer);
+    }
     // if(getChecksum(buffer->data)==buffer->checksum){
-    if (readFlag(buffer) == NACK) {
+    if ((readFlag(buffer) == NACK) || (timer == 1)) {
+      start = clock();
       buffer->id = clientID;
       sendMessage(DR, socketfd, buffer, serverName);
       /*Is a timer needed here?*/
-    } else if (readFlag(buffer) == DRACK) {
+    
+    } else if ((readFlag(buffer) == DRACK) && !isCorrupt(buffer)) {
       sendMessage(ACK, socketfd, buffer, serverName);
       break;
     }

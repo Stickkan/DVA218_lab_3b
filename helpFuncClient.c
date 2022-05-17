@@ -1,19 +1,19 @@
 #include "header.h"
 
-int createRandomID(void){
+int createRandomID(void) {
   srand(clock());
-  int integer = rand() %1000;
+  int integer = rand() % 1000;
   return integer;
 }
 
-rtp * createPackages(rtp * packages, int windowSize, int clientID){
-  for(int i = 0; i<NUMBEROFPACKAGES; i++){
-    *(packages[i]).data = i*100;
+rtp *createPackages(rtp *packages, int windowSize, int clientID) {
+  for (int i = 0; i < NUMBEROFPACKAGES; i++) {
+    *(packages[i]).data = i * 100;
     (packages[i]).id = clientID;
     (packages[i]).checksum = getChecksum(&(packages[i]).data);
     (packages[i]).seq = i;
     (packages[i]).flags = 0;
-    (packages[i]).windowsize = windowSize;  
+    (packages[i]).windowsize = windowSize;
   }
   return packages;
 }
@@ -38,9 +38,9 @@ int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 }
 
 int isCorrupt(rtp *buffer) {
-  if(getChecksum(buffer->data)==buffer->checksum)
+  if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
-  return 0;
+  return 1;
 }
 
 int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
@@ -62,8 +62,7 @@ int readFlag(rtp *buffer) {
     return SYNACK;
   } else if (buffer->flags == SYN) {
     return SYN;
-  }
-  else if(buffer->flags == DRACK){
+  } else if (buffer->flags == DRACK) {
     return DRACK;
   }
   return 0;
@@ -103,6 +102,7 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   int wait = 1, status;
   clock_t start, stop;
   double time_passed;
+  int test;
 
   start = clock();
 
@@ -113,7 +113,9 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       wait = rcvMessage(socketfd, serverName, buffer);
       if (wait > 0) {
         wait = readMessage(buffer);
+        
         if ((!isCorrupt(buffer)) && wait == SYNACK) {
+
           sendMessage(ACK, socketfd, buffer, serverName);
           break;
         };
@@ -124,7 +126,7 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
     time_passed = (double)(stop - start) / CLOCKS_PER_SEC;
     if ((time_passed >= TIMEOUT) || wait == NACK) {
-      sendMessage(NACK, socketfd, buffer, serverName);
+      sendMessage(SYN, socketfd, buffer, serverName);
       start = clock();
     }
   }
