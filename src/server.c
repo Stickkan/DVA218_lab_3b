@@ -68,6 +68,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
           start = clock();
         }
       }
+      /*Here we need a function that reads an ACK from the client. If no ACK is received resend SYNACK.*/
       printf("Received ACK From client!\n");
       starting = 0;
       break;

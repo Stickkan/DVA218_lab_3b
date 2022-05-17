@@ -38,10 +38,12 @@ int bindSocket(int socketfd, struct sockaddr_in *clientName) {
 }
 
 int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
-
+  int ret_makeCorr;
   socklen_t socklen = sizeof(struct sockaddr);
   int recvResult = recvfrom(socketfd, buffer, MAXMSG, MSG_WAITALL,
                             (struct sockaddr *)clientName, &socklen);
+  /*Insert makeCorrupt()*/
+  ret_makeCorr = makeCorrupt(buffer);
   if (recvResult < 0) {
     printf("Could not recieve message!\n");
   }
@@ -49,6 +51,8 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
 }
 
 int readFlag(rtp *buffer) {
+
+  int ret_makeCorr = makeCorrupt(buffer);
 
   if (buffer->flags == ACK) {
     return ACK;
@@ -61,13 +65,14 @@ int readFlag(rtp *buffer) {
   } else if (buffer->flags == DR) {
     return DR;
   }
-
   return 0;
 }
 
 int readMessage(rtp *buffer) {
 
   int flag = readFlag(buffer);
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
   if (flag == 0) {
     // printMessage
   }
@@ -86,21 +91,23 @@ int isCorrupt(rtp *buffer) {
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
-
+  int correctSeqNumb = buffer->seq;
   buffer->windowsize = windowSize;
   buffer->flags = flag;
   buffer->checksum = getChecksum(buffer->data);
 
   while (1) {
-    int result =
-        sendto(socketfd, buffer, sizeof(*buffer), 0,
-               (const struct sockaddr *)clientName, sizeof(*clientName));
-
-    if (result < 0) {
-      printf("Could not send message!\n");
+    int result = makeCorrupt(buffer);
+    if (result < 0){
+      printLost(flag, correctSeqNumb);
       return 0;
-    } else
-      break;
+    }
+    else{
+      result = sendto(socketfd, buffer, sizeof(*buffer), 0,
+                      (const struct sockaddr *)clientName, sizeof(*clientName));
+       if (result < 0)
+          printf("Error! The sendto() didn't return correct value.\n");
+    }
   }
   return 1;
 }
@@ -127,16 +134,22 @@ int shouldTerminate(rtp *buffer) {
 }
 
 void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName, int seq) {
- 
+  int seqNumber;
+  seqNumber = buffer->seq;
   memset(buffer, 0, sizeof(*buffer));
   buffer->seq = seq;
+  buffer->seq = seqNumber;
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
   sendMessage(NACK, socketfd, buffer, clientName);
 }
 
 int isDRACK(rtp *buffer) {
-  if (buffer->flags == DRACK) {
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
+  if (buffer->flags == DRACK)
     return 1;
-  }
+
   return 0;
 }
 
@@ -162,4 +175,66 @@ int isTimeOut(clock_t start, int timeout_type) {
     }
   }
   return 0;
+}
+
+/*This function changes some random values.*/
+int makeCorrupt(rtp *buffer) {
+  int errorRate;
+  int corruptSend;
+
+  srand(time(0));
+
+  errorRate = rand() % 10;
+
+  /*10% chance of entering this statement. If you want to increase errorRate add
+   * (|| errorRate == x%10).*/
+  if (errorRate == 2) {
+    /*for checksum*/
+    buffer->checksum = (rand() % 255);
+  }
+  if (errorRate == 1) {
+    /*Corrupt the ACK and or SYN and or DR*/
+    buffer->flags = 64;
+  }
+  if (errorRate == 8) {
+    buffer->seq = 132;
+  }
+  if (errorRate == 5) {
+    /*Make sure that the return value automatically makes the sendMessage not
+     * send a message by returning a value less than 0.*/
+    corruptSend = -2;
+
+    return corruptSend;
+  }
+
+  /*If the program does not enter corruptSend statement then return 1 to make
+   * sure that the package is sent.*/
+  return 1;
+}
+
+void printLost(int flag, int seqNumb){
+int state;
+switch(state){
+    case ACK:
+    printf("ACK of package %d lost! \n", seqNumb);
+    break;
+    case SYN:
+    printf("SYN lost!\n");
+    break;
+    case SYNACK:
+    printf("SYNACK lost!\n");
+    break;
+    case DR:
+    printf("DR lost!\n");
+    break;
+    case DRACK:
+    printf("DRACK lost!\n");
+    break;
+    case DATA: 
+    printf("Datapackage nr: %d lost!\n", seqNumb);
+    break;
+    default: 
+    state = flag;
+    break;
+}
 }
