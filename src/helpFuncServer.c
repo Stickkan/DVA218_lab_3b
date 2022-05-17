@@ -38,10 +38,12 @@ int bindSocket(int socketfd, struct sockaddr_in *clientName) {
 }
 
 int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
-
+  int ret_makeCorr;
   socklen_t socklen = sizeof(struct sockaddr);
   int recvResult = recvfrom(socketfd, buffer, MAXMSG, MSG_WAITALL,
                             (struct sockaddr *)clientName, &socklen);
+  /*Insert makeCorrupt()*/
+  ret_makeCorr = makeCorrupt(buffer);
   if (recvResult < 0) {
     printf("Could not recieve message!\n");
   }
@@ -49,6 +51,8 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
 }
 
 int readFlag(rtp *buffer) {
+  
+  int ret_makeCorr = makeCorrupt(buffer);
 
   if (buffer->flags == ACK) {
     return ACK;
@@ -61,13 +65,14 @@ int readFlag(rtp *buffer) {
   } else if (buffer->flags == DR) {
     return DR;
   }
-
   return 0;
 }
 
 int readMessage(rtp *buffer) {
 
   int flag = readFlag(buffer);
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
   if (flag == 0) {
     // printMessage
   }
@@ -93,7 +98,9 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
     int result =
         sendto(socketfd, buffer, sizeof(*buffer), 0,
                (const struct sockaddr *)clientName, sizeof(*clientName));
-
+    /*If the result value is not altered to create an error the returned value
+     * is much greater than 0.*/
+    result = makeCorrupt(buffer);
     if (result < 0) {
       printf("Could not send message!\n");
       return 0;
@@ -129,13 +136,17 @@ void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   seqNumber = buffer->seq;
   memset(buffer, 0, sizeof(*buffer));
   buffer->seq = seqNumber;
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
   sendMessage(NACK, socketfd, buffer, clientName);
 }
 
 int isDRACK(rtp *buffer) {
-  if (buffer->flags == DRACK) {
+  /*Insert makeCorrupt()*/
+  int ret_makeCorr = makeCorrupt(buffer);
+  if (buffer->flags == DRACK)
     return 1;
-  }
+
   return 0;
 }
 
@@ -163,7 +174,7 @@ int isTimeOut(clock_t start, int timeout_type) {
   return 0;
 }
 
-/*This is mainly to change the checksum to some random value.*/
+/*This function changes some random values.*/
 int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
@@ -184,6 +195,13 @@ int makeCorrupt(rtp *buffer) {
     corruptSend = -2;
 
     return corruptSend;
+  }
+  if (errorRate == 1) {
+    /*Corrupt the ACK and or SYN and or DR*/
+    buffer->flags = 64;
+  }
+  if (errorRate == 8) {
+    buffer->seq = 132;
   }
 
   /*If the program does not enter corruptSend statement then return 1 to make
