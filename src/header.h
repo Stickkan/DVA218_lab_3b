@@ -127,4 +127,7 @@ int shouldTerminate(rtp *buffer);
 
 /*Checks if the package has been received earlier*/
 int wasReceived(rtp *buffer, int expectedSeqNumber);
+
+/*Code to corrupt either checksum or does not send the message at all.*/
+int makeCorrupt(rtp* buffer);
 #endif
