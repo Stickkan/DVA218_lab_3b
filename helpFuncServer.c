@@ -162,3 +162,27 @@ int isTimeOut(clock_t start, int timeout_type) {
   }
   return 0;
 }
+
+/*This is mainly to change the checksum to some random value.*/
+int makeCorrupt(rtp *buffer) {
+  int errorRate;
+  int corruptSend;
+
+  srand(time(0));
+
+  errorRate = rand() % 10;
+
+  /*10% chance of entering this statement. If you want to increase errorRate add
+   * (|| errorRate == x%10).*/
+  if (errorRate == 2) {
+    /*for checksum*/
+    buffer->checksum = (rand() % 255);
+  }
+  if (errorRate == 5) {
+    /*Make sure that the return value automatically makes the sendMessage not
+     * send a message by returning a value less than 0.*/
+    corruptSend = -2;
+  }
+
+  return corruptSend;
+}

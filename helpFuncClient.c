@@ -40,7 +40,8 @@ int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 int isCorrupt(rtp *buffer) {
   if(getChecksum(buffer->data)==buffer->checksum)
     return 0;
-  return 0;
+  
+  return 1;
 }
 
 int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
