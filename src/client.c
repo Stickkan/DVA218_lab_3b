@@ -76,9 +76,16 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     }
     int timeOut = isTimeOut(start, TIMEOUT_ACK);
     //
-    if ((timeOut == 1) || ((flag == NACK) && !isCorrupt(buffer))) {
-      //
+    if ((timeOut == 1)) {
       start = clock();
+      printf("Timeout! Resending from base!\n");
+      for (int i = base; i < (nextPacket); i++) {
+        sendMessage(0, socketfd, &(packets[i]), serverName);
+      }
+    }
+    if((flag == NACK) && !isCorrupt(buffer)){
+      start = clock();
+      printf("Received NACK. Resending from base!\n");
       for (int i = base; i < (nextPacket); i++) {
         sendMessage(0, socketfd, &(packets[i]), serverName);
       }

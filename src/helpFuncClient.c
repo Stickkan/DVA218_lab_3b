@@ -213,7 +213,7 @@ int makeCorrupt(rtp *buffer) {
     buffer->flags = 64;
   }
   if (errorRate == 8) {
-    printf("Modified seq on package with flag %d (Client)\n", buffer->flags);
+    printf("Modified seq on package %d with flag %d (Client)\n", buffer->seq,buffer->flags);
     buffer->seq = rand() % 10;
   }
   if (errorRate == 5) {
