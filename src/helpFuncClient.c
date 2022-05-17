@@ -1,19 +1,19 @@
 #include "header.h"
 
-int createRandomID(void){
+int createRandomID(void) {
   srand(clock());
-  int integer = rand() %1000;
+  int integer = rand() % 1000;
   return integer;
 }
 
-rtp * createPackages(rtp * packages, int windowSize, int clientID){
-  for(int i = 0; i<NUMBEROFPACKAGES; i++){
-    *(packages[i]).data = i*100;
+rtp *createPackages(rtp *packages, int windowSize, int clientID) {
+  for (int i = 0; i < NUMBEROFPACKAGES; i++) {
+    *(packages[i]).data = i * 100;
     (packages[i]).id = clientID;
     (packages[i]).checksum = getChecksum(&(packages[i]).data);
     (packages[i]).seq = i;
     (packages[i]).flags = 0;
-    (packages[i]).windowsize = windowSize;  
+    (packages[i]).windowsize = windowSize;
   }
   return packages;
 }
@@ -38,9 +38,9 @@ int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 }
 
 int isCorrupt(rtp *buffer) {
-  if(getChecksum(buffer->data)==buffer->checksum)
+  if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
-  
+
   return 1;
 }
 
@@ -64,8 +64,7 @@ int readFlag(rtp *buffer) {
     return SYNACK;
   } else if (buffer->flags == SYN) {
     return SYN;
-  }
-  else if(buffer->flags == DRACK){
+  } else if (buffer->flags == DRACK) {
     return DRACK;
   }
   return 0;
@@ -84,21 +83,22 @@ int readMessage(rtp *buffer) {
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *serverName) {
-
+  int correctSeqNumb = buffer->seq;
   buffer->flags = flag;
   buffer->windowsize = WINDOWSIZE;
-  buffer->checksum = getChecksum(buffer->data);  
+  buffer->checksum = getChecksum(buffer->data);
   while (1) {
-    int result =
-        sendto(socketfd, buffer, sizeof(*buffer), 0,
-               (const struct sockaddr *)serverName, sizeof(*serverName));
     /*Insert makeCorrupt()*/
-    int ret_makeCorr = makeCorrupt(buffer);
+    int result = makeCorrupt(buffer);
     if (result < 0) {
-      printf("Could not send message!\n");
+      printLost(flag, correctSeqNumb);
       return 0;
-    } else
-      break;
+    } else {
+      result = sendto(socketfd, buffer, sizeof(*buffer), 0,
+                      (const struct sockaddr *)serverName, sizeof(*serverName));
+      if (result < 0)
+        printf("Error the sendto() didn't return correct value.\n");
+    }
   }
   return 1;
 }
@@ -158,7 +158,7 @@ int getAckNumber(rtp *buffer) {
 int packetInWindow(int ackNumber, int base) {
   if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base))
     return 1;
-  
+
   return 0;
 }
 
@@ -203,6 +203,13 @@ int makeCorrupt(rtp *buffer) {
     /*for checksum*/
     buffer->checksum = (rand() % 255);
   }
+  if (errorRate == 1) {
+    /*Corrupt the ACK and or SYN and or DR*/
+    buffer->flags = 64;
+  }
+  if (errorRate == 8) {
+    buffer->seq = 132;
+  }
   if (errorRate == 5) {
     /*Make sure that the return value automatically makes the sendMessage not
      * send a message by returning a value less than 0.*/
@@ -210,15 +217,35 @@ int makeCorrupt(rtp *buffer) {
 
     return corruptSend;
   }
-  if(errorRate == 1){
-    /*Corrupt the ACK and or SYN and or DR*/
-    buffer->flags = 64;
-  }
-  if (errorRate == 8){
-    buffer->seq = 132;
-  }
 
   /*If the program does not enter corruptSend statement then return 1 to make
    * sure that the package is sent.*/
   return 1;
+}
+
+void printLost(int flag, int seqNumb){
+int state;
+switch(state){
+    case ACK:
+    printf("ACK of package %d lost! \n", seqNumb);
+    break;
+    case SYN:
+    printf("SYN lost!\n");
+    break;
+    case SYNACK:
+    printf("SYNACK lost!\n");
+    break;
+    case DR:
+    printf("DR lost!\n");
+    break;
+    case DRACK:
+    printf("DRACK lost!\n");
+    break;
+    case DATA: 
+    printf("Datapackage nr: %d lost!\n", seqNumb);
+    break;
+    default: 
+    state = flag;
+    break;
+}
 }

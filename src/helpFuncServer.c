@@ -51,7 +51,7 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
 }
 
 int readFlag(rtp *buffer) {
-  
+
   int ret_makeCorr = makeCorrupt(buffer);
 
   if (buffer->flags == ACK) {
@@ -91,21 +91,21 @@ int isCorrupt(rtp *buffer) {
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
-
+  int correctSeqNumb = buffer->seq;
   buffer->windowsize = windowSize;
   buffer->flags = flag;
   while (1) {
-    int result =
-        sendto(socketfd, buffer, sizeof(*buffer), 0,
-               (const struct sockaddr *)clientName, sizeof(*clientName));
-    /*If the result value is not altered to create an error the returned value
-     * is much greater than 0.*/
-    result = makeCorrupt(buffer);
-    if (result < 0) {
-      printf("Could not send message!\n");
+    int result = makeCorrupt(buffer);
+    if (result < 0){
+      printLost(flag, correctSeqNumb);
       return 0;
-    } else
-      break;
+    }
+    else{
+      result = sendto(socketfd, buffer, sizeof(*buffer), 0,
+                      (const struct sockaddr *)clientName, sizeof(*clientName));
+       if (result < 0)
+          printf("Error! The sendto() didn't return correct value.\n");
+    }
   }
   return 1;
 }
@@ -189,13 +189,6 @@ int makeCorrupt(rtp *buffer) {
     /*for checksum*/
     buffer->checksum = (rand() % 255);
   }
-  if (errorRate == 5) {
-    /*Make sure that the return value automatically makes the sendMessage not
-     * send a message by returning a value less than 0.*/
-    corruptSend = -2;
-
-    return corruptSend;
-  }
   if (errorRate == 1) {
     /*Corrupt the ACK and or SYN and or DR*/
     buffer->flags = 64;
@@ -203,8 +196,42 @@ int makeCorrupt(rtp *buffer) {
   if (errorRate == 8) {
     buffer->seq = 132;
   }
+  if (errorRate == 5) {
+    /*Make sure that the return value automatically makes the sendMessage not
+     * send a message by returning a value less than 0.*/
+    corruptSend = -2;
+
+    return corruptSend;
+  }
 
   /*If the program does not enter corruptSend statement then return 1 to make
    * sure that the package is sent.*/
   return 1;
+}
+
+void printLost(int flag, int seqNumb){
+int state;
+switch(state){
+    case ACK:
+    printf("ACK of package %d lost! \n", seqNumb);
+    break;
+    case SYN:
+    printf("SYN lost!\n");
+    break;
+    case SYNACK:
+    printf("SYNACK lost!\n");
+    break;
+    case DR:
+    printf("DR lost!\n");
+    break;
+    case DRACK:
+    printf("DRACK lost!\n");
+    break;
+    case DATA: 
+    printf("Datapackage nr: %d lost!\n", seqNumb);
+    break;
+    default: 
+    state = flag;
+    break;
+}
 }
