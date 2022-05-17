@@ -182,7 +182,11 @@ int makeCorrupt(rtp *buffer) {
     /*Make sure that the return value automatically makes the sendMessage not
      * send a message by returning a value less than 0.*/
     corruptSend = -2;
+
+    return corruptSend;
   }
 
-  return corruptSend;
+  /*If the program does not enter corruptSend statement then return 1 to make
+   * sure that the package is sent.*/
+  return 1;
 }
