@@ -33,12 +33,13 @@
 #define DRACK 11
 #define TIMEOUT_ACK 1
 #define TIMEOUT_DR 1
-#define TIMEOUT_SERVER 30
+#define TIMEOUT_SERVER 5
 #define _XOPEN_SOURCE_EXTENDED 1
 #define PACKETSTOSEND 10
 #define WINDOWSIZE 3
 #define NUMBEROFPACKAGES 10
 #define MOD 15
+#define SHOULD_ERROR 1
 
 typedef struct rtp_struct{
     int flags;

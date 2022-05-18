@@ -1,11 +1,9 @@
 #include "header.h"
-
+int produceError;
 int windowSize;
 int packageArray[NUMBEROFPACKAGES] = {0};
 
-void travelTime(void){
-  sleep(0.001);
-}
+void travelTime(void) { sleep((double)0.001); }
 
 int createSocketServer(struct sockaddr_in *clientName) {
 
@@ -45,7 +43,7 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
   socklen_t socklen = sizeof(struct sockaddr);
   int recvResult = recvfrom(socketfd, buffer, MAXMSG, MSG_WAITALL,
                             (struct sockaddr *)clientName, &socklen);
- 
+
   if (recvResult < 0) {
     printf("Could not recieve message!\n");
   }
@@ -53,8 +51,6 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
 }
 
 int readFlag(rtp *buffer) {
-
-  
 
   if (buffer->flags == ACK) {
     return ACK;
@@ -70,25 +66,26 @@ int readFlag(rtp *buffer) {
   return 0;
 }
 
-
 /*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i
 headern. Jämför dem och returnerar 0 eller 1 beroende på om de är samma eller
 inte.*/
 int isCorrupt(rtp *buffer) {
   if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
-  printCorrupt(buffer->flags, buffer->seq);
+  //printCorrupt(buffer->flags, buffer->seq);
   return 1;
 }
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
+  int result=0;
   int correctSeqNumb = buffer->seq;
   buffer->windowsize = windowSize;
   buffer->flags = flag;
   buffer->checksum = getChecksum(buffer->data);
-
-  int result = makeCorrupt(buffer);
+  if (SHOULD_ERROR) {
+    result = makeCorrupt(buffer);
+  }
   if (result < 0) {
     printLost(flag, correctSeqNumb);
     return 0;
@@ -105,7 +102,8 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
 }
 
 void printMessage(rtp *buffer) {
-  printf("Message received from client seq %d with package number %d: %s\n",buffer->id, buffer->seq, buffer->data);
+  printf("Message received from client ID %d with package number %d: %s\n",
+         buffer->id, buffer->seq, buffer->data);
 }
 
 int wasReceived(rtp *buffer, int expectedSeqNumber) {
@@ -132,7 +130,6 @@ void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName,
   memset(buffer, 0, sizeof(*buffer));
   buffer->seq = seq;
   buffer->seq = seqNumber;
-
 
   sendMessage(NACK, socketfd, buffer, clientName);
 }
@@ -169,10 +166,49 @@ int isTimeOut(clock_t start, int timeout_type) {
   return 0;
 }
 
+char *translateFlagNumber(int flag) {
+  char *syn = "SYN";
+  char *ack = "ACK";
+  char *synack = "SYNACK";
+  char *nack = "NACK";
+  char *dr = "DR";
+  char *data = "DATA";
+  char *drack = "DRACK";
+  char *corruptFlag = "Corrupt flag";
+  if (flag == 1) {
+    return syn;
+  }
+  if (flag == 2) {
+    return ack;
+  }
+  if (flag == 3) {
+    return synack;
+  }
+  if (flag == 8) {
+    return nack;
+  }
+  if (flag == 9) {
+    return dr;
+  }
+  if (flag == 0) {
+    return data;
+  }
+  if (flag == 11) {
+    return drack;
+  }
+  if (flag == 64) {
+    return corruptFlag;
+  } else
+    return "Error translating";
+}
+
 /*This function changes some random values.*/
 int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
+  char *flag;
+
+  flag = translateFlagNumber(buffer->flags);
 
   srand(clock());
 
@@ -180,22 +216,21 @@ int makeCorrupt(rtp *buffer) {
 
   /*10% chance of entering this statement. If you want to increase errorRate add
    * (|| errorRate == x%10).*/
-  if (errorRate == (rand()%MOD)) {
+  if (errorRate == (rand() % MOD)) {
     /*for checksum*/
-     printf("Modified checksum %d (Client)\n", buffer->flags);
+    printf("Modified checksum on %s (Client)\n", flag);
     buffer->checksum = (rand() % 255);
   }
-  if (errorRate == (rand()%MOD)) {
-    printf("Modified flag %d on package %d (Client)\n", buffer->flags,
-           buffer->seq);
+  if (errorRate == (rand() % MOD)) {
+    printf("Modified flag %s on package %d (Client)\n", flag, buffer->seq);
     /*Corrupt the ACK and or SYN and or DR*/
     buffer->flags = 64;
   }
-  if (errorRate == (rand()%MOD)) {
-    printf("Modified seq on package with flag %d (Client)\n", buffer->flags);
-    buffer->seq = rand()%MOD;
+  if (errorRate == (rand() % MOD)) {
+    printf("Modified seq on package with flag %s (Client)\n", flag);
+    buffer->seq = rand() % MOD;
   }
-  if (errorRate == (rand()%MOD)) {
+  if (errorRate == (rand() % MOD)) {
     /*Make sure that the return value automatically makes the sendMessage not
      * send a message by returning a value less than 0.*/
     corruptSend = -2;
@@ -210,28 +245,36 @@ int makeCorrupt(rtp *buffer) {
 
 void printLost(int flag, int seqNumb) {
   int state;
-  switch (state) {
-  case ACK:
-    printf("ACK of package %d lost! \n", seqNumb);
-    break;
-  case SYN:
-    printf("SYN lost!\n");
-    break;
-  case SYNACK:
-    printf("SYNACK lost!\n");
-    break;
-  case DR:
-    printf("DR lost!\n");
-    break;
-  case DRACK:
-    printf("DRACK lost!\n");
-    break;
-  case DATA:
-    printf("Datapackage nr: %d lost!\n", seqNumb);
-    break;
-  default:
-    state = flag;
-    break;
+  while (state != 99) {
+    switch (state) {
+    case ACK:
+      printf("ACK of package %d lost! \n", seqNumb);
+      state = 99;
+      break;
+    case SYN:
+      printf("SYN lost!\n");
+      state = 99;
+      break;
+    case SYNACK:
+      printf("SYNACK lost!\n");
+      state = 99;
+      break;
+    case DR:
+      printf("DR lost!\n");
+      state = 99;
+      break;
+    case DRACK:
+      printf("DRACK lost!\n");
+      state = 99;
+      break;
+    case DATA:
+      printf("Datapackage nr: %d lost!\n", seqNumb);
+      state = 99;
+      break;
+    default:
+      state = flag;
+      break;
+    }
   }
 }
 

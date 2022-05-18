@@ -4,6 +4,7 @@
 
 int clientID;
 
+
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int starting = 1, state = INIT, recvResult, wait = 1, timeout = 0, sendR;
@@ -41,8 +42,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   clock_t start, stop;
   double timePassed;
   int test = 0;
-  
-
+  char * flagString;
 
   while (1) {
     if (isNextInWindow(nextPacket, base)) {
@@ -53,11 +53,12 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
           nextPacket <= NUMBEROFPACKAGES - 1) {
         // makePacket(buffer, nextPacket, (packets[0]).data, checksum);
         // buffer->id = clientID;
-     
-        memcpy(buffer,&(packets[nextPacket]),sizeof(rtp));
+
+        memcpy(buffer, &(packets[nextPacket]), sizeof(rtp));
         sendMessage(0, socketfd, buffer, serverName);
-        
-        printf("Sent message with flag %d and sequence number %d\n", buffer->flags, buffer->seq);
+        flagString = translateFlagNumber(buffer->flags);
+        printf("Sent message with flag %s and sequence number %d\n",
+               flagString, buffer->seq);
         nextPacket++;
       }
     }
@@ -70,10 +71,12 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       if ((flag == ACK) && packetInWindow(ackNumber, base)) {
         printf("Received ACK %d\n", ackNumber);
         base = ackNumber;
+        if(base!=ackNumber)
+          printf("Increased base to %d\n", base);
+        
+        start = clock();
         if (base == nextPacket) {
           start = 0;
-        } else {
-          start = clock();
         }
       }
 
@@ -84,23 +87,21 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     }
     int timeOut = isTimeOut(start, TIMEOUT_ACK);
     //
-    if ((timeOut == 1)) {
+    if (timeOut == 1) {
       start = clock();
       printf("Timeout! Resending from base %d!\n", base);
       for (int i = base; i < (nextPacket); i++) {
-          rtp * tes = &packets[i];
+        rtp *tes = &packets[i];
         sendMessage(0, socketfd, &packets[i], serverName);
       }
-      
     }
-    if((flag == NACK) && !isCorrupt(buffer)){
+    if ((flag == NACK) && !isCorrupt(buffer)) {
       start = clock();
       printf("Received NACK. Resending from base!\n");
       for (int i = base; i < (nextPacket); i++) {
-        
+
         memcpy(buffer, &packets[i], sizeof(packets[i]));
         sendMessage(0, socketfd, buffer, serverName);
-       
       }
     }
 
@@ -152,7 +153,7 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
       buffer->id = clientID;
       sendMessage(DR, socketfd, buffer, serverName);
       /*Is a timer needed here?*/
-    
+
     } else if ((readFlag(buffer) == DRACK) && !isCorrupt(buffer)) {
       sendMessage(ACK, socketfd, buffer, serverName);
       break;
@@ -169,6 +170,7 @@ int main(int argc, char *argv[]) {
   rtp buffer;
   struct sockaddr_in serverName;
   argv[1] = "localhost";
+  
 
   int socketfd = createSocketClient(&serverName, argv[1]);
 

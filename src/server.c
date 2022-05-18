@@ -87,6 +87,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
   int test = 0;
   int expectedPackageNumber = 0;
   int seqNumber;
+  char *flagString;
   clock_t serverStart = clock();
   while (1) {
     if (isTimeOut(serverStart, TIMEOUT_SERVER)) {
@@ -113,17 +114,23 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       buffer->id = clientID;
 
       sendMessage(ACK, socketfd, buffer, clientName);
-      printf("Sent ACK %d \n", buffer->seq);
+      printf("Sent ACK for package %d \n", buffer->seq);
 
       expectedPackageNumber++;
       // wasReceived(buffer, buffer->seq)
+      
     } else if (isCorrupt(buffer)) {
       sendNack(socketfd, buffer, clientName, seqNumber);
+      flagString = translateFlagNumber(buffer->flags);
+      printf("Package with flag %s and seq %d is corrupt, tossing!\n",
+             flagString, buffer->seq);
+
     } else if (buffer->seq < expectedPackageNumber) {
-      printf("Received duplicate, expected %d! Throwing package %d!\n", expectedPackageNumber,buffer->seq);
-      buffer->seq = expectedPackageNumber-1;
+      printf("Received duplicate, expected %d! Throwing package %d!\n",
+             expectedPackageNumber, buffer->seq);
+      buffer->seq = expectedPackageNumber - 1;
       sendMessage(ACK, socketfd, buffer, clientName);
-      printf("Sent ACK %d again\n", buffer->seq);
+      printf("Sent ACK for package %d again\n", buffer->seq);
     }
   }
   // printf("Teardown request received. Closing sequence initiated!\n");
@@ -168,8 +175,9 @@ int main(int argc, char *argv[]) {
   int teardown;
   rtp buffer;
   struct sockaddr_in clientName;
+ 
 
-  int socketfd = createSocketServer(&clientName);
+    int socketfd = createSocketServer(&clientName);
 
   if ((bindResult = bindSocket(socketfd, &clientName)) >= 0) {
 

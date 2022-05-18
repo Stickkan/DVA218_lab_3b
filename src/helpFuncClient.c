@@ -1,19 +1,23 @@
 #include "header.h"
 
+int produceError;
+
 int createRandomID(void) {
   srand(clock());
   int integer = rand() % 1000;
   return integer;
 }
 
-void travelTime(void){
-  sleep(0.001);
-}
+void travelTime(void) { sleep((double)0.001); }
 
 rtp *createPackages(rtp *packages, int windowSize, int clientID) {
   for (int i = 0; i < NUMBEROFPACKAGES; i++) {
-    char * data = "100";
-    strcpy(packages[i].data, data );
+    srand(clock());
+    int dataInteger = rand()%1000;
+    char *data = malloc(sizeof("1000"));
+    sprintf(data, "%d", dataInteger );
+
+    strcpy(packages[i].data, data);
     //*(packages[i]).data = i * 100;
     (packages[i]).id = clientID;
     (packages[i]).checksum = getChecksum(&(packages[i]).data);
@@ -78,7 +82,7 @@ int readFlag(rtp *buffer) {
 int readMessage(rtp *buffer) {
 
   int flag = readFlag(buffer);
-  
+
   if (flag == 0) {
     // printMessage
   }
@@ -87,12 +91,15 @@ int readMessage(rtp *buffer) {
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *serverName) {
+  int result = 0;
   int correctSeqNumb = buffer->seq;
   buffer->flags = flag;
   buffer->windowsize = WINDOWSIZE;
   buffer->checksum = getChecksum(buffer->data);
-
-  int result = makeCorrupt(buffer);
+  
+  if(SHOULD_ERROR){
+  result = makeCorrupt(buffer);
+  }
   if (result < 0) {
     printLost(flag, correctSeqNumb);
     return 0;
@@ -100,14 +107,13 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
     travelTime();
     result = sendto(socketfd, buffer, sizeof(*buffer), 0,
                     (const struct sockaddr *)serverName, sizeof(*serverName));
-                    
 
-    if (result < 0){
+    if (result < 0) {
       printf("Error the sendto() didn't return correct value.\n");
-    return 0;
+      return 0;
     }
   }
-  
+
   return 1;
 }
 
@@ -127,8 +133,9 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
       wait = rcvMessage(socketfd, serverName, buffer);
       if (wait > 0) {
         wait = readFlag(buffer);
-      
+
         if ((!isCorrupt(buffer)) && wait == SYNACK) {
+          printf("Received SYNACK from server!\n");
           sendMessage(ACK, socketfd, buffer, serverName);
           break;
         };
@@ -156,7 +163,7 @@ void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
 
 int getAckNumber(rtp *buffer) {
   int ackNumber = buffer->seq;
- 
+
   return ackNumber;
 }
 
@@ -193,33 +200,75 @@ int isNextInWindow(int nextPacket, int base) {
   return 0;
 }
 
+char *translateFlagNumber(int flag) {
+  char *syn = "SYN";
+  char *ack = "ACK";
+  char *synack = "SYNACK";
+  char *nack = "NACK";
+  char *dr = "DR";
+  char *data = "DATA";
+  char *drack = "DRACK";
+  char *corruptFlag = "Corrupt flag";
+
+  if (flag == 1) {
+    return syn;
+  }
+  if (flag == 2) {
+    return ack;
+  }
+  if (flag == 3) {
+    return synack;
+  }
+  if (flag == 8) {
+    return nack;
+  }
+  if (flag == 9) {
+    return dr;
+  }
+  if (flag == 0) {
+    return data;
+  }
+  if (flag == 11) {
+    return drack;
+  }
+  if (flag == 64) {
+    return corruptFlag;
+  } else
+    return "Error translating";
+}
+
 /*This function changes some random values.*/
 int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
+  char *flag;
 
+  flag = translateFlagNumber(buffer->flags);
   srand(clock());
 
-  errorRate = rand() % 10;
+  errorRate = rand() % MOD;
 
   /*10% chance of entering this statement. If you want to increase errorRate add
    * (|| errorRate == x%10).*/
-  if (errorRate == (rand()%MOD)) {
+  if (errorRate == (rand() % MOD)) {
     /*for checksum*/
-    printf("Simulate corrupt, flag %d on package %d (Client)\n", buffer->flags, buffer->seq);
+    printf("Simulate corrupt with flag %s on package %d (Client)\n", flag,
+           buffer->seq);
     buffer->checksum = (rand() % 255);
   }
-  if (errorRate == (rand()%MOD)) {
+  if (errorRate == (rand() % MOD)) {
     /*Corrupt the ACK and or SYN and or DR*/
-    printf("Simulate corrupt flag %d on package %d (Client)\n", buffer->flags,
+    printf("Simulate corrupt flag %s on package %d (Client)\n", flag,
            buffer->seq);
     buffer->flags = 64;
   }
-  if (errorRate == (rand()%MOD)) {
-    printf("Simulate package out of order on package %d with flag %d (Client)\n", buffer->seq,buffer->flags);
+  if (errorRate == (rand() % MOD)) {
+    printf(
+        "Simulate package out of order on package %d with flag %s (Client)\n",
+        buffer->seq, flag);
     buffer->seq = rand() % MOD;
   }
-  if (errorRate == (rand()%MOD)) {
+  if (errorRate == (rand() % MOD)) {
     /*Make sure that the return value automatically makes the sendMessage not
      * send a message by returning a value less than 0.*/
     corruptSend = -2;
@@ -234,28 +283,36 @@ int makeCorrupt(rtp *buffer) {
 
 void printLost(int flag, int seqNumb) {
   int state;
-  switch (state) {
-  case ACK:
-    printf("ACK of package %d lost! \n", seqNumb);
-    break;
-  case SYN:
-    printf("SYN lost!\n");
-    break;
-  case SYNACK:
-    printf("SYNACK lost!\n");
-    break;
-  case DR:
-    printf("DR lost!\n");
-    break;
-  case DRACK:
-    printf("DRACK lost!\n");
-    break;
-  case DATA:
-    printf("Datapackage nr: %d lost!\n", seqNumb);
-    break;
-  default:
-    state = flag;
-    break;
+  while (state != 99) {
+    switch (state) {
+    case ACK:
+      printf("ACK of package %d lost! \n", seqNumb);
+      state = 99;
+      break;
+    case SYN:
+      printf("SYN lost!\n");
+      state = 99;
+      break;
+    case SYNACK:
+      printf("SYNACK lost!\n");
+      state = 99;
+      break;
+    case DR:
+      printf("DR lost!\n");
+      state = 99;
+      break;
+    case DRACK:
+      printf("DRACK lost!\n");
+      state = 99;
+      break;
+    case DATA:
+      printf("Datapackage nr: %d lost!\n", seqNumb);
+      state = 99;
+      break;
+    default:
+      state = flag;
+      break;
+    }
   }
 }
 
