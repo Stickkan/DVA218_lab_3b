@@ -106,7 +106,9 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         printf("Timeout! Resending from base %d!\n", base);
         for (int i = base; i < (nextPacket); i++) {
           rtp *tes = &packets[i];
-          sendMessage(0, socketfd, &packets[i], serverName);
+          memcpy(buffer, &packets[i], sizeof(packets[i]));
+          sendMessage(0, socketfd, buffer, serverName);
+          printf("Resent package %d\n ",i );
         }
       }
     }

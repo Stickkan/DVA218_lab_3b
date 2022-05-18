@@ -127,7 +127,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
              flagString, buffer->seq);
 
 
-    } else if ((buffer->seq < expectedPackageNumber) || (buffer->seq > expectedPackageNumber) {   
+    } else if ((buffer->seq < expectedPackageNumber) || (buffer->seq > expectedPackageNumber)) {   
       printf("Received Out of order, expected %d! Throwing package %d!\n",
              expectedPackageNumber, buffer->seq);
 
