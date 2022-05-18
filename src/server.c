@@ -102,7 +102,8 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
     }
 
     //(wasReceived(buffer, expectedPackageNumber) == 1
-    if ((buffer->seq == expectedPackageNumber) && (isCorrupt(buffer) == 0)) {
+    if ((buffer->seq == expectedPackageNumber) && (isCorrupt(buffer) == 0) &&
+        expectedPackageNumber < NUMBEROFPACKAGES) {
 
       if (readFlag(buffer) == DATA) {
         printMessage(buffer);
@@ -118,19 +119,21 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
 
       expectedPackageNumber++;
       // wasReceived(buffer, buffer->seq)
-      
+
     } else if (isCorrupt(buffer)) {
       sendNack(socketfd, buffer, clientName, seqNumber);
       flagString = translateFlagNumber(buffer->flags);
       printf("Package with flag %s and seq %d is corrupt, tossing!\n",
              flagString, buffer->seq);
 
-    } else if (buffer->seq < expectedPackageNumber) {
-      printf("Received duplicate, expected %d! Throwing package %d!\n",
+
+    } else if ((buffer->seq < expectedPackageNumber) || (buffer->seq > expectedPackageNumber) {   
+      printf("Received Out of order, expected %d! Throwing package %d!\n",
              expectedPackageNumber, buffer->seq);
-      buffer->seq = expectedPackageNumber - 1;
-      sendMessage(ACK, socketfd, buffer, clientName);
-      printf("Sent ACK for package %d again\n", buffer->seq);
+
+      buffer->seq = expectedPackageNumber;
+      sendMessage(NACK, socketfd, buffer, clientName);
+      printf("Sent NACK for package %d\n", buffer->seq);
     }
   }
   // printf("Teardown request received. Closing sequence initiated!\n");
@@ -153,17 +156,24 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
+      // if (flag == ACK) {
+      //   buffer->checksum = 999;
+      // }
       if ((flag == ACK) && !isCorrupt(buffer)) {
         break;
       }
+      printf("ACK Corrupt!\n");
     }
 
-    if ((isTimeOut(startACK, TIMEOUT_DR)) || flag == NACK) {
+    if (isTimeOut(startDR, TIMEOUT_SERVER)) {
+      printf("Server timed out!\n");
+      break;
+    }
+
+    if ((isTimeOut(startACK, TIMEOUT_DR) == 1) || (flag == NACK)) {
+
       buffer->id = clientID;
       sendMessage(DRACK, socketfd, buffer, clientName);
-    }
-    if (isTimeOut(startDR, TIMEOUT_SERVER)) {
-      break;
     }
   }
   printf("Server has closed!\n");
@@ -175,9 +185,8 @@ int main(int argc, char *argv[]) {
   int teardown;
   rtp buffer;
   struct sockaddr_in clientName;
- 
 
-    int socketfd = createSocketServer(&clientName);
+  int socketfd = createSocketServer(&clientName);
 
   if ((bindResult = bindSocket(socketfd, &clientName)) >= 0) {
 

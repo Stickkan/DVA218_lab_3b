@@ -90,7 +90,6 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
     printLost(flag, correctSeqNumb);
     return 0;
   } else {
-    travelTime();
     result = sendto(socketfd, buffer, sizeof(*buffer), 0,
                     (const struct sockaddr *)clientName, sizeof(*clientName));
     if (result < 0)
@@ -147,19 +146,23 @@ int isTimeOut(clock_t start, int timeout_type) {
   double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
   if (timeout_type == TIMEOUT) {
     if (timePassed >= TIMEOUT) {
+      printf("Timeout!\n");
       return 1;
     }
   } else if (timeout_type == TIMEOUT_DR) {
     if (timePassed >= TIMEOUT_DR) {
+      printf("Timeout!\n");
       return 1;
     }
   } else if (timeout_type == TIMEOUT_ACK) {
     if (timePassed >= TIMEOUT_ACK) {
+      printf("Timeout!\n");
       return 1;
     }
 
   } else if (timeout_type == TIMEOUT_SERVER) {
     if (timePassed >= TIMEOUT_SERVER) {
+      printf("Timeout!\n");
       return 1;
     }
   }
@@ -228,7 +231,7 @@ int makeCorrupt(rtp *buffer) {
   }
   if (errorRate == (rand() % MOD)) {
     printf("Modified seq on package with flag %s (Client)\n", flag);
-    buffer->seq = rand() % MOD;
+    buffer->seq = rand() % 9;
   }
   if (errorRate == (rand() % MOD)) {
     /*Make sure that the return value automatically makes the sendMessage not

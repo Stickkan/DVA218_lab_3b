@@ -25,7 +25,7 @@
 #define OPENED 5
 #define CLOSE 6
 #define CORRUPT 7
-#define TIMEOUT 1
+#define TIMEOUT 2
 #define NACK 8
 #define MAXMSG 512
 #define DR 9

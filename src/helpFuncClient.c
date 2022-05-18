@@ -104,7 +104,7 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
     printLost(flag, correctSeqNumb);
     return 0;
   } else {
-    travelTime();
+    
     result = sendto(socketfd, buffer, sizeof(*buffer), 0,
                     (const struct sockaddr *)serverName, sizeof(*serverName));
 
@@ -252,7 +252,7 @@ int makeCorrupt(rtp *buffer) {
    * (|| errorRate == x%10).*/
   if (errorRate == (rand() % MOD)) {
     /*for checksum*/
-    printf("Simulate corrupt with flag %s on package %d (Client)\n", flag,
+    printf("Simulate corrupt checksum with flag %s on package %d (Client)\n", flag,
            buffer->seq);
     buffer->checksum = (rand() % 255);
   }
@@ -266,7 +266,7 @@ int makeCorrupt(rtp *buffer) {
     printf(
         "Simulate package out of order on package %d with flag %s (Client)\n",
         buffer->seq, flag);
-    buffer->seq = rand() % MOD;
+    buffer->seq = rand() % 9;
   }
   if (errorRate == (rand() % MOD)) {
     /*Make sure that the return value automatically makes the sendMessage not

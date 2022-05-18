@@ -4,7 +4,6 @@
 
 int clientID;
 
-
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int starting = 1, state = INIT, recvResult, wait = 1, timeout = 0, sendR;
@@ -42,7 +41,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
   clock_t start, stop;
   double timePassed;
   int test = 0;
-  char * flagString;
+  char *flagString;
 
   while (1) {
     if (isNextInWindow(nextPacket, base)) {
@@ -57,8 +56,8 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         memcpy(buffer, &(packets[nextPacket]), sizeof(rtp));
         sendMessage(0, socketfd, buffer, serverName);
         flagString = translateFlagNumber(buffer->flags);
-        printf("Sent message with flag %s and sequence number %d\n",
-               flagString, buffer->seq);
+        printf("Sent message with flag %s and sequence number %d\n", flagString,
+               buffer->seq);
         nextPacket++;
       }
     }
@@ -70,10 +69,9 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
 
       if ((flag == ACK) && packetInWindow(ackNumber, base)) {
         printf("Received ACK %d\n", ackNumber);
-        base = ackNumber;
-        if(base!=ackNumber)
-          printf("Increased base to %d\n", base);
-        
+        base = ackNumber + 1;
+        printf("Increased base to %d\n", base);
+
         start = clock();
         if (base == nextPacket) {
           start = 0;
@@ -85,27 +83,35 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         start = clock();
       }
     }
-    int timeOut = isTimeOut(start, TIMEOUT_ACK);
+
     //
-    if (timeOut == 1) {
-      start = clock();
-      printf("Timeout! Resending from base %d!\n", base);
-      for (int i = base; i < (nextPacket); i++) {
-        rtp *tes = &packets[i];
-        sendMessage(0, socketfd, &packets[i], serverName);
-      }
-    }
+
     if ((flag == NACK) && !isCorrupt(buffer)) {
       start = clock();
-      printf("Received NACK. Resending from base!\n");
-      for (int i = base; i < (nextPacket); i++) {
-
+      if (buffer->seq < NUMBEROFPACKAGES) {
+        base = buffer->seq;
+      }
+      printf("Received NACK. Expecting package: %d, resending from base!\n",
+             base);
+      for (int i = base; i == nextPacket; i++) {
+        printf("packets is: %d before memcpy\n", packets[i].seq);
         memcpy(buffer, &packets[i], sizeof(packets[i]));
         sendMessage(0, socketfd, buffer, serverName);
       }
     }
+    int timeOut = isTimeOut(start, TIMEOUT_ACK);
+    if (timeOut == 1) {
+      start = clock();
+      if (base < NUMBEROFPACKAGES) {
+        printf("Timeout! Resending from base %d!\n", base);
+        for (int i = base; i < (nextPacket); i++) {
+          rtp *tes = &packets[i];
+          sendMessage(0, socketfd, &packets[i], serverName);
+        }
+      }
+    }
 
-    if ((base) == PACKETSTOSEND - 1) {
+    if ((base) == PACKETSTOSEND) {
       break;
     }
   }
@@ -138,6 +144,7 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
   /*Start timer (is this needed?!) yes because we will terminate if we do not
    * receive a NACK*/
   clock_t start = clock();
+  clock_t tearTimer = clock();
 
   /*Check the recieved flag from the recieved message*/
   while (1) {
@@ -155,7 +162,14 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
       /*Is a timer needed here?*/
 
     } else if ((readFlag(buffer) == DRACK) && !isCorrupt(buffer)) {
+      printf("DACK received from server!\n");
       sendMessage(ACK, socketfd, buffer, serverName);
+      printf("Sent ACK to server!\n");
+      break;
+    }
+    clock_t tearTimerStop = isTimeOut(tearTimer, TIMEOUT_SERVER);
+    if (tearTimerStop == 1) {
+      printf("Client Timed out.\n");
       break;
     }
   }
@@ -170,7 +184,6 @@ int main(int argc, char *argv[]) {
   rtp buffer;
   struct sockaddr_in serverName;
   argv[1] = "localhost";
-  
 
   int socketfd = createSocketClient(&serverName, argv[1]);
 
