@@ -76,6 +76,9 @@ int readFlag(rtp *buffer) {
   } else if (buffer->flags == DRACK) {
     return DRACK;
   }
+  else if((buffer->flags)== NACK){
+    return NACK;
+  }
   return 0;
 }
 

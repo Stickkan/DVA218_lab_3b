@@ -32,6 +32,10 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   return 1;
 }
 
+void resetBuffer(rtp * buffer){
+  memset(buffer, 0, sizeof(rtp));
+}
+
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
@@ -84,15 +88,22 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       }
     }
 
-    //
+    
 
-    if ((flag == NACK) && !isCorrupt(buffer)) {
+    //
+    flag = readFlag(buffer);
+    if ((flag == NACK) && isCorrupt(buffer) == 0) {
       start = clock();
-      if (buffer->seq < NUMBEROFPACKAGES) {
+      if (buffer->seq <= NUMBEROFPACKAGES) {
         base = buffer->seq;
+        printf("Base set to %d!\n", base);
+        if ((base) == PACKETSTOSEND) {
+          break;
+        }
       }
       printf("Received NACK. Expecting package: %d, resending from base!\n",
              base);
+
       for (int i = base; i == nextPacket; i++) {
         printf("packets is: %d before memcpy\n", packets[i].seq);
         memcpy(buffer, &packets[i], sizeof(packets[i]));
@@ -107,8 +118,10 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         for (int i = base; i < (nextPacket); i++) {
           rtp *tes = &packets[i];
           memcpy(buffer, &packets[i], sizeof(packets[i]));
-          sendMessage(0, socketfd, buffer, serverName);
-          printf("Resent package %d\n ",i );
+          int send = sendMessage(0, socketfd, buffer, serverName);
+          if (send == 1) {
+            printf("Resent package %d\n ", i);
+          }
         }
       }
     }
@@ -116,6 +129,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     if ((base) == PACKETSTOSEND) {
       break;
     }
+    resetBuffer(buffer);
   }
   printf("All packages sent and ACK'd!\n");
   return 1;

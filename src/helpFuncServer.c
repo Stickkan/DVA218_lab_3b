@@ -72,13 +72,13 @@ inte.*/
 int isCorrupt(rtp *buffer) {
   if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
-  //printCorrupt(buffer->flags, buffer->seq);
+  // printCorrupt(buffer->flags, buffer->seq);
   return 1;
 }
 
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
-  int result=0;
+  int result = 0;
   int correctSeqNumb = buffer->seq;
   buffer->windowsize = windowSize;
   buffer->flags = flag;
@@ -92,11 +92,11 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   } else {
     result = sendto(socketfd, buffer, sizeof(*buffer), 0,
                     (const struct sockaddr *)clientName, sizeof(*clientName));
-    if (result < 0)
+    if (result < 0) {
       printf("Error! The sendto() didn't return correct value.\n");
-    return 0;
+      return 0;
+    }
   }
-
   return 1;
 }
 
@@ -272,6 +272,10 @@ void printLost(int flag, int seqNumb) {
       break;
     case DATA:
       printf("Datapackage nr: %d lost!\n", seqNumb);
+      state = 99;
+      break;
+    case NACK:
+      printf("NACK Lost!\n");
       state = 99;
       break;
     default:

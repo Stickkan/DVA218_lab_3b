@@ -39,7 +39,7 @@
 #define WINDOWSIZE 3
 #define NUMBEROFPACKAGES 10
 #define MOD 15
-#define SHOULD_ERROR 1
+#define SHOULD_ERROR 0
 
 typedef struct rtp_struct{
     int flags;

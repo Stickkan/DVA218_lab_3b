@@ -84,7 +84,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
-  int test = 0;
+  int test = 0, send;
   int expectedPackageNumber = 0;
   int seqNumber;
   char *flagString;
@@ -114,9 +114,10 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       buffer->seq = seqNumber;
       buffer->id = clientID;
 
-      sendMessage(ACK, socketfd, buffer, clientName);
-      printf("Sent ACK for package %d \n", buffer->seq);
-
+      send = sendMessage(ACK, socketfd, buffer, clientName);
+      if (send == 1) {
+        printf("Sent ACK for package %d \n", buffer->seq);
+      }
       expectedPackageNumber++;
       // wasReceived(buffer, buffer->seq)
 
@@ -126,14 +127,16 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       printf("Package with flag %s and seq %d is corrupt, tossing!\n",
              flagString, buffer->seq);
 
-
-    } else if ((buffer->seq < expectedPackageNumber) || (buffer->seq > expectedPackageNumber)) {   
+    } else if ((buffer->seq < expectedPackageNumber) ||
+               (buffer->seq > expectedPackageNumber)) {
       printf("Received Out of order, expected %d! Throwing package %d!\n",
              expectedPackageNumber, buffer->seq);
 
       buffer->seq = expectedPackageNumber;
-      sendMessage(NACK, socketfd, buffer, clientName);
-      printf("Sent NACK for package %d\n", buffer->seq);
+      send = sendMessage(NACK, socketfd, buffer, clientName);
+      if (send == 1) {
+        printf("Sent NACK for package %d\n", buffer->seq);
+      }
     }
   }
   // printf("Teardown request received. Closing sequence initiated!\n");
