@@ -3,6 +3,8 @@
 #include "helpFuncClient.c"
 
 int clientID;
+rtp * packageArray;
+rtp packets[NUMBEROFPACKAGES];
 
 int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
@@ -39,13 +41,14 @@ void resetBuffer(rtp * buffer){
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
-  rtp packets[NUMBEROFPACKAGES];
+  
   createPackages(packets, WINDOWSIZE, clientID);
   int status, base = 0, nextPacket = 0, checksum, flag, ackNumber;
   clock_t start, stop;
   double timePassed;
   int test = 0;
   char *flagString;
+  
 
   while (1) {
     if (isNextInWindow(nextPacket, base)) {
@@ -97,7 +100,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       if (buffer->seq <= NUMBEROFPACKAGES) {
         base = buffer->seq;
         printf("Base set to %d!\n", base);
-        if ((base) == PACKETSTOSEND) {
+        if ((base) == NUMBEROFPACKAGES) {
           break;
         }
       }
@@ -115,7 +118,7 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       start = clock();
       if (base < NUMBEROFPACKAGES) {
         printf("Timeout! Resending from base %d!\n", base);
-        for (int i = base; i < (nextPacket); i++) {
+        for (int i = base; i < (base+WINDOWSIZE); i++) {
           rtp *tes = &packets[i];
           memcpy(buffer, &packets[i], sizeof(packets[i]));
           int send = sendMessage(0, socketfd, buffer, serverName);
@@ -126,12 +129,16 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       }
     }
 
-    if ((base) == PACKETSTOSEND) {
+    if ((base) == NUMBEROFPACKAGES) {
       break;
     }
     resetBuffer(buffer);
   }
   printf("All packages sent and ACK'd!\n");
+  printf("Packets sent from client: \n");
+   for(int i = 0; i<NUMBEROFPACKAGES; i++){
+    printf("Packet %d Data: %s\n", i, (packets[i]).data);
+  }
   return 1;
 }
 
@@ -189,13 +196,13 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
       break;
     }
   }
-  /*Terminte the connection => close socket*/
+ 
   return 0;
 }
 
 int main(int argc, char *argv[]) {
 
-  int state = START, start = 0, opened = 0, close = 0, bindResult;
+  int state = START, start = 0, opened = 0, closed = 0, bindResult;
   int teardown;
   rtp buffer;
   struct sockaddr_in serverName;
@@ -221,7 +228,11 @@ int main(int argc, char *argv[]) {
       break;
     case CLOSE:
       teardown = clientTearDown(&buffer, socketfd, &serverName);
-      printf("Client has disconnected from server!\n");
+      
+      closed =close(socketfd);
+      if(closed ==0){
+        printf("Client has disconnected from server!\n");
+      }
       state = 99;
       break;
     default:
@@ -229,14 +240,6 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
-
-  // int result = sendto(socketfd, &testMessage, sizeof(testMessage), 0,
-  //                     (const struct sockaddr *)&serverName,
-  //                     sizeof(serverName));
-
-  // if (result < 0) {
-  //   printf("Could not send message!\n");
-  // }
 
   return 0;
 }

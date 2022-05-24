@@ -2,12 +2,6 @@
 #include "header.h"
 #include "helpFuncServer.c"
 
-#define PORT 5555
-#define hostNameLength 50
-#define messageLength 256
-#define MAXMSG 512
-#define NUMBEROFPACKAGES 10
-
 int windowSize;
 int clientID;
 // int packageArray[NUMBEROFPACKAGES] = {0};
@@ -84,6 +78,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
+  rtp *packets = malloc(sizeof(rtp)*NUMBEROFPACKAGES);
   int test = 0, send;
   int expectedPackageNumber = 0;
   int seqNumber;
@@ -98,6 +93,10 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
     rcvMessage(socketfd, clientName, buffer);
 
     if (shouldTerminate(buffer)) {
+      printf("Packages received from client: \n");
+      for(int i = 0; i<NUMBEROFPACKAGES; i++){
+        printf("Package %d data: %s \n", i, (packets[i]).data);
+      }
       break;
     }
 
@@ -106,6 +105,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
         expectedPackageNumber < NUMBEROFPACKAGES) {
 
       if (readFlag(buffer) == DATA) {
+        strcpy((packets[expectedPackageNumber]).data,buffer->data );
         printMessage(buffer);
       }
 
@@ -152,6 +152,7 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
   buffer->id = clientID;
 
   sendMessage(DRACK, socketfd, buffer, clientName);
+  printf("Sent DRACK!\n");
   startACK = clock();
   while (1) {
 
@@ -163,9 +164,12 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       //   buffer->checksum = 999;
       // }
       if ((flag == ACK) && !isCorrupt(buffer)) {
+        printf("Received ACK from server!\n");
         break;
+      } else if (flag == ACK) {
+        printf("ACK Corrupt!\n");
+        sleep(3);
       }
-      printf("ACK Corrupt!\n");
     }
 
     if (isTimeOut(startDR, TIMEOUT_SERVER)) {
@@ -179,6 +183,7 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       sendMessage(DRACK, socketfd, buffer, clientName);
     }
   }
+
   printf("Server has closed!\n");
   return 1;
 }

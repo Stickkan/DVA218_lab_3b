@@ -20,7 +20,7 @@ rtp *createPackages(rtp *packages, int windowSize, int clientID) {
     strcpy(packages[i].data, data);
     //*(packages[i]).data = i * 100;
     (packages[i]).id = clientID;
-    (packages[i]).checksum = getChecksum(&(packages[i]).data);
+    (packages[i]).checksum = getChecksum((packages[i]).data);
     (packages[i]).seq = i;
     (packages[i]).flags = 0;
     (packages[i]).windowsize = windowSize;
@@ -30,7 +30,7 @@ rtp *createPackages(rtp *packages, int windowSize, int clientID) {
 
 int createSocketClient(struct sockaddr_in *serverName, char *argv) {
 
-  int *dstHost = "127.0.0.1";
+  char *dstHost = "127.0.0.1";
 
   int socketfd;
   struct hostent *hostinfo;
