@@ -15,33 +15,37 @@ int clientStart(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   while (starting) {
     switch (state) {
-    case INIT:
-      buffer->id = createRandomID();
-      clientID = buffer->id;
-      sendR = sendMessage(SYN, socketfd, buffer, serverName);
-      state = SYNACK;
+      /*Initialize the connection by sending a SYN to the server.*/
+      case INIT:
+        buffer->id = createRandomID();
+        clientID = buffer->id;
+        sendR = sendMessage(SYN, socketfd, buffer, serverName);
+        state = SYNACK;
 
-      break;
-    case SYNACK:
-      wait_SYNACK(socketfd, buffer, serverName);
-      starting = 0;
-      break;
-    default:
-      break;
-    }
+        break;
+      /*If a SYNACK has been received then send an ACK.*/  
+      case SYNACK:
+        wait_SYNACK(socketfd, buffer, serverName);
+        starting = 0;
+        break;
+      default:
+        break;
+      }
   }
+  /*For the user to know what the random generated client ID is.*/
   printf("Client ID: %d\n", clientID);
   return 1;
 }
 
 void resetBuffer(rtp * buffer){
+  /*Does what the function header implies.*/
   memset(buffer, 0, sizeof(rtp));
 }
 
 int clientSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *serverName) {
 
-  
+  /*Creation of a package and decleration of some variables.*/
   createPackages(packets, WINDOWSIZE, clientID);
   int status, base = 0, nextPacket = 0, checksum, flag, ackNumber;
   clock_t start, stop;
@@ -55,10 +59,10 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       if (nextPacket == base) {
         start = clock();
       }
+      /*Checks whether or not the next package to be sent is in the correct order 
+      and wihthin the the agreed upon number of packages.*/
       if (isNextInWindow(nextPacket, base) &&
           nextPacket <= NUMBEROFPACKAGES - 1) {
-        // makePacket(buffer, nextPacket, (packets[0]).data, checksum);
-        // buffer->id = clientID;
 
         memcpy(buffer, &(packets[nextPacket]), sizeof(rtp));
         sendMessage(0, socketfd, buffer, serverName);
@@ -68,12 +72,16 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
         nextPacket++;
       }
     }
+
+    /*Checks if there is a message to be read. If there is a messge to be read then
+    receive it and copy the package header for its info*/
     ioctl(socketfd, FIONREAD, &status);
     if (status > 0) {
       rcvMessage(socketfd, serverName, buffer);
       flag = readFlag(buffer);
       ackNumber = getAckNumber(buffer);
 
+      /*If an ACK is received increase the base value.*/
       if ((flag == ACK) && packetInWindow(ackNumber, base)) {
         printf("Received ACK %d\n", ackNumber);
         base = ackNumber + 1;
@@ -164,8 +172,7 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
   buffer->id = clientID;
   sendMessage(DR, socketfd, buffer, serverName);
 
-  /*Start timer (is this needed?!) yes because we will terminate if we do not
-   * receive a NACK*/
+  /*Start timer*/
   clock_t start = clock();
   clock_t tearTimer = clock();
 
@@ -177,19 +184,21 @@ int clientTearDown(rtp *buffer, int socketfd, struct sockaddr_in *serverName) {
     if (status > 0) {
       rcvMessage(socketfd, serverName, buffer);
     }
-    // if(getChecksum(buffer->data)==buffer->checksum){
+    
     if ((readFlag(buffer) == NACK) || (timer == 1)) {
+      /*Restart clock if a NACK is received*/
       start = clock();
       buffer->id = clientID;
       sendMessage(DR, socketfd, buffer, serverName);
-      /*Is a timer needed here?*/
-
+      
+    /*Send an ACK if a DRACK is received*/
     } else if ((readFlag(buffer) == DRACK) && !isCorrupt(buffer)) {
-      printf("DACK received from server!\n");
+      printf("DRACK received from server!\n");
       sendMessage(ACK, socketfd, buffer, serverName);
       printf("Sent ACK to server!\n");
       break;
     }
+
     clock_t tearTimerStop = isTimeOut(tearTimer, TIMEOUT_SERVER);
     if (tearTimerStop == 1) {
       printf("Client Timed out.\n");
@@ -212,6 +221,7 @@ int main(int argc, char *argv[]) {
 
   while (state != 99) {
 
+    /*The different states in which the program can operate.*/
     switch (state) {
     case START:
       start = clientStart(socketfd, &buffer, &serverName);
@@ -222,19 +232,19 @@ int main(int argc, char *argv[]) {
       break;
 
     case OPENED:
-
       clientSlidingWindows(socketfd, &buffer, &serverName);
       state = CLOSE;
       break;
+
     case CLOSE:
-      teardown = clientTearDown(&buffer, socketfd, &serverName);
-      
+      teardown = clientTearDown(&buffer, socketfd, &serverName);      
       closed =close(socketfd);
       if(closed ==0){
         printf("Client has disconnected from server!\n");
       }
       state = 99;
       break;
+
     default:
       state = START;
       break;

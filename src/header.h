@@ -138,7 +138,9 @@ int makeCorrupt(rtp* buffer);
 /*Prints what the error is*/
 void printLost(int flag, int seqNumb);
 
+/*Prints a corrupt message*/
 void printCorrupt(int flag, int seqNumb);
 
+/*If the need to simulate some propagation time*/
 void travelTime(void);
 #endif

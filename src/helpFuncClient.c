@@ -47,6 +47,8 @@ int createSocketClient(struct sockaddr_in *serverName, char *argv) {
   return socketfd;
 }
 
+/*isCorrupt() checks if the received message is corrupt or not by checking the checksum and compare
+it to the received one.*/
 int isCorrupt(rtp *buffer) {
   if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
@@ -54,6 +56,8 @@ int isCorrupt(rtp *buffer) {
   return 1;
 }
 
+/*Receives the message from client. If return value of recvfrom() is less
+than 0 print an error message.*/
 int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
 
   socklen_t socklen = sizeof(struct sockaddr);
@@ -65,6 +69,8 @@ int rcvMessage(int socketfd, struct sockaddr_in *serverName, rtp *buffer) {
   return recvResult;
 }
 
+/*Read all the different types of flags that can be received. If not
+one of the if statements then return 0.*/
 int readFlag(rtp *buffer) {
 
   if (buffer->flags == ACK) {
@@ -92,6 +98,8 @@ int readMessage(rtp *buffer) {
   return flag;
 }
 
+/*Sends a message to the client. First the struct is filled, adding some errors if that option is
+choosen.  If result is less than zero print an error message.*/
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *serverName) {
   int result = 0;
@@ -120,6 +128,8 @@ int sendMessage(int flag, int socketfd, rtp *buffer,
   return 1;
 }
 
+/*Waits for SYNACK from the server. If no message is received within the alloted time
+  or the flag is not a SYNACK resend the SYN to the server.*/
 int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
 
   int wait = 1, status;
@@ -157,6 +167,7 @@ int wait_SYNACK(int socketfd, rtp *buffer, struct sockaddr_in *serverName) {
   return 0;
 }
 
+/*Fills the header with the sent in info in the function header.*/
 void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
 
   buffer->seq = packetNumber;
@@ -164,12 +175,14 @@ void makePacket(rtp *buffer, int packetNumber, char data[], int checksum) {
   buffer->checksum = checksum;
 }
 
+/*Copies the sequence number and returns it.*/
 int getAckNumber(rtp *buffer) {
   int ackNumber = buffer->seq;
 
   return ackNumber;
 }
 
+/*If the packet is within windowsize and the ACK is equal or greater than base return true (1). Else return (0).*/
 int packetInWindow(int ackNumber, int base) {
   if ((ackNumber <= (base + WINDOWSIZE - 1)) && (ackNumber >= base))
     return 1;
@@ -177,6 +190,8 @@ int packetInWindow(int ackNumber, int base) {
   return 0;
 }
 
+/*Stops the timer, calculates the duration of the timeout and then compares the computed value
+to the timeout type sent in the function header. If true return 1 else return 0.*/
 int isTimeOut(clock_t start, int timeout_type) {
   clock_t stop = clock();
   double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
@@ -203,6 +218,7 @@ int isNextInWindow(int nextPacket, int base) {
   return 0;
 }
 
+/*Does what the function header implies*/
 char *translateFlagNumber(int flag) {
   char *syn = "SYN";
   char *ack = "ACK";
@@ -240,7 +256,7 @@ char *translateFlagNumber(int flag) {
     return "Error translating";
 }
 
-/*This function changes some random values.*/
+/*This function changes some random values inorder to corrupt the packages.*/
 int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
@@ -284,6 +300,7 @@ int makeCorrupt(rtp *buffer) {
   return 1;
 }
 
+/*Prints out what is lost so that the user know the progress of the program.*/
 void printLost(int flag, int seqNumb) {
   int state;
   while (state != 99) {
@@ -319,6 +336,7 @@ void printLost(int flag, int seqNumb) {
   }
 }
 
+/*Prints out the package number and what is corrupt so that the user know the progress of the program.*/
 void printCorrupt(int flag, int seqNumb) {
   int state;
   switch (state) {

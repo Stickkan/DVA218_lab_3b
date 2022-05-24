@@ -4,10 +4,11 @@
 
 int windowSize;
 int clientID;
-// int packageArray[NUMBEROFPACKAGES] = {0};
 
+/*The start of the server by using a three way handshake*/
 int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
+  /*Declaration of variables*/
   int starting = 1, state = SYN, recvResult, wait = 1, timeout = 0;
   time_t start, stop;
   double time_passed;
@@ -15,8 +16,7 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
   while (starting) {
     int test = 0;
-    // recvResult = rcvMessage(socketfd, clientName, buffer);
-    // state = readFlag(buffer);
+    
 
     switch (state) {
     case SYN:
@@ -26,6 +26,8 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
         windowSize = buffer->windowsize;
         int flag = readFlag(buffer);
 
+        /*How: The recieved message is controlled so that it is not corrupt and that the flag is a SYN.
+         If true than enter statement*/
         if (!isCorrupt(buffer) && flag == SYN) {
           buffer->id = clientID;
 
@@ -38,6 +40,8 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
         }
       }
       break;
+
+      /*Finalizing the three way handshake by checking for errors and flag*/
     case SYNACK:
       start = clock();
       int status;
@@ -72,12 +76,15 @@ int serverStart(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
       break;
     }
   }
+  /*If all is succesfull*/
   printf("Connection established with client %d!\n", clientID);
   return 1;
 }
 
 int serverSlidingWindows(int socketfd, rtp *buffer,
                          struct sockaddr_in *clientName) {
+
+  /*Declaring variables and alloctating memory*/
   rtp *packets = malloc(sizeof(rtp)*NUMBEROFPACKAGES);
   int test = 0, send;
   int expectedPackageNumber = 0;
@@ -85,6 +92,8 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
   char *flagString;
   clock_t serverStart = clock();
   while (1) {
+    
+    /*Related to the teardown procedure*/
     if (isTimeOut(serverStart, TIMEOUT_SERVER)) {
       printf("Server has not received messages for 1 minute. Closing "
              "Connection!\n");
@@ -92,6 +101,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
     }
     rcvMessage(socketfd, clientName, buffer);
 
+    /*This function is related to the teardown aswell*/
     if (shouldTerminate(buffer)) {
       printf("Packages received from client: \n");
       for(int i = 0; i<NUMBEROFPACKAGES; i++){
@@ -100,7 +110,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       break;
     }
 
-    //(wasReceived(buffer, expectedPackageNumber) == 1
+    
     if ((buffer->seq == expectedPackageNumber) && (isCorrupt(buffer) == 0) &&
         expectedPackageNumber < NUMBEROFPACKAGES) {
 
@@ -109,6 +119,7 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
         printMessage(buffer);
       }
 
+      /*Fill the struct with the received info*/
       seqNumber = buffer->seq;
       memset(buffer, 0, sizeof(*buffer));
       buffer->seq = seqNumber;
@@ -118,10 +129,12 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       if (send == 1) {
         printf("Sent ACK for package %d \n", buffer->seq);
       }
+      /*Update the number for next package*/
       expectedPackageNumber++;
-      // wasReceived(buffer, buffer->seq)
 
-    } else if (isCorrupt(buffer)) {
+    } 
+    /*How the program handles corrupt and out of order packages*/
+    else if (isCorrupt(buffer)) {
       sendNack(socketfd, buffer, clientName, seqNumber);
       flagString = translateFlagNumber(buffer->flags);
       printf("Package with flag %s and seq %d is corrupt, tossing!\n",
@@ -139,18 +152,19 @@ int serverSlidingWindows(int socketfd, rtp *buffer,
       }
     }
   }
-  // printf("Teardown request received. Closing sequence initiated!\n");
   return 1;
 }
 
 int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
 
+  /*Declaring variables*/
   clock_t startDR, stop, startACK;
   double timePassed;
   int status, flag;
   startDR = clock();
   buffer->id = clientID;
 
+  /*If a DR has been received then send a Disconnect Request Acknowledgement (DRACK)*/
   sendMessage(DRACK, socketfd, buffer, clientName);
   printf("Sent DRACK!\n");
   startACK = clock();
@@ -160,9 +174,10 @@ int serverTeardown(int socketfd, rtp *buffer, struct sockaddr_in *clientName) {
     if (status > 0) {
       rcvMessage(socketfd, clientName, buffer);
       int flag = readFlag(buffer);
-      // if (flag == ACK) {
-      //   buffer->checksum = 999;
-      // }
+
+      /*Implementing the same three way handshake as for startup but it does not
+      wait for confirmation. The server is shouting down regardless of receiving
+      an ACK or not*/
       if ((flag == ACK) && !isCorrupt(buffer)) {
         printf("Received ACK from server!\n");
         break;
@@ -193,6 +208,9 @@ int main(int argc, char *argv[]) {
   int teardown;
   rtp buffer;
   struct sockaddr_in clientName;
+
+  /*See each function declared above for information about what every function
+  does.*/
 
   int socketfd = createSocketServer(&clientName);
 

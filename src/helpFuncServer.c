@@ -39,6 +39,8 @@ int bindSocket(int socketfd, struct sockaddr_in *clientName) {
   return bindReturn;
 }
 
+/*Receives the message from client. If return value of recvfrom() is less
+than 0 print an error message.*/
 int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
   socklen_t socklen = sizeof(struct sockaddr);
   int recvResult = recvfrom(socketfd, buffer, MAXMSG, MSG_WAITALL,
@@ -50,6 +52,8 @@ int rcvMessage(int socketfd, struct sockaddr_in *clientName, rtp *buffer) {
   return recvResult;
 }
 
+/*Read all the different types of flags that can be received. If not
+one of the if statements then return 0.*/
 int readFlag(rtp *buffer) {
 
   if (buffer->flags == ACK) {
@@ -66,9 +70,8 @@ int readFlag(rtp *buffer) {
   return 0;
 }
 
-/*Tanken är att isCorrupt() tar *buffer samt den checksumma som skickas med i
-headern. Jämför dem och returnerar 0 eller 1 beroende på om de är samma eller
-inte.*/
+/*isCorrupt() checks if the received message is corrupt or not by checking the checksum and compare
+it to the received one.*/
 int isCorrupt(rtp *buffer) {
   if (getChecksum(buffer->data) == buffer->checksum)
     return 0;
@@ -76,6 +79,8 @@ int isCorrupt(rtp *buffer) {
   return 1;
 }
 
+/*Sends a message to the client. First the struct is filled, adding some errors if that option is
+choosen.  If result is less than zero print an error message.*/
 int sendMessage(int flag, int socketfd, rtp *buffer,
                 struct sockaddr_in *clientName) {
   int result = 0;
@@ -105,6 +110,7 @@ void printMessage(rtp *buffer) {
          buffer->id, buffer->seq, buffer->data);
 }
 
+/*Help function that does exactly what the function header implies*/
 int wasReceived(rtp *buffer, int expectedSeqNumber) {
   if (packageArray[expectedSeqNumber] == 1) {
     return 0;
@@ -112,16 +118,17 @@ int wasReceived(rtp *buffer, int expectedSeqNumber) {
   return 1;
 }
 
+/*Checks the flag and the status and if a DR is received begin the termination process.*/
 int shouldTerminate(rtp *buffer) {
   int flag = readFlag(buffer);
   if ((flag == DR) && !isCorrupt(buffer)) {
-    printf("Disconnect request received from client!\n Initiating "
-           "shutdown!\n");
+    printf("Disconnect request received from client!\n Initiating shutdown!\n");
     return 1;
   }
   return 0;
 }
 
+/*If an error has occured then a NACK is sent to let the client know.*/
 void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName,
               int seq) {
   int seqNumber;
@@ -133,6 +140,7 @@ void sendNack(int socketfd, rtp *buffer, struct sockaddr_in *clientName,
   sendMessage(NACK, socketfd, buffer, clientName);
 }
 
+/*If the flag is a DRACK then return true (1).*/
 int isDRACK(rtp *buffer) {
 
   if (buffer->flags == DRACK)
@@ -141,6 +149,8 @@ int isDRACK(rtp *buffer) {
   return 0;
 }
 
+/*Stops the timer, calculates the duration of the timeout and then compares the computed value
+to the timeout type sent in the function header. If true return 1 else return 0.*/
 int isTimeOut(clock_t start, int timeout_type) {
   clock_t stop = clock();
   double timePassed = (double)(stop - start) / CLOCKS_PER_SEC;
@@ -169,6 +179,7 @@ int isTimeOut(clock_t start, int timeout_type) {
   return 0;
 }
 
+/*Does what the function header implies*/
 char *translateFlagNumber(int flag) {
   char *syn = "SYN";
   char *ack = "ACK";
@@ -205,7 +216,7 @@ char *translateFlagNumber(int flag) {
     return "Error translating";
 }
 
-/*This function changes some random values.*/
+/*This function changes some random values inorder to corrupt the packages.*/
 int makeCorrupt(rtp *buffer) {
   int errorRate;
   int corruptSend;
@@ -246,6 +257,7 @@ int makeCorrupt(rtp *buffer) {
   return 1;
 }
 
+/*Prints out what is lost so that the user know the progress of the program.*/
 void printLost(int flag, int seqNumb) {
   int state;
   while (state != 99) {
@@ -285,6 +297,7 @@ void printLost(int flag, int seqNumb) {
   }
 }
 
+/*Prints out the package number and what is corrupt so that the user know the progress of the program.*/
 void printCorrupt(int flag, int seqNumb) {
   int state;
   switch (state) {
