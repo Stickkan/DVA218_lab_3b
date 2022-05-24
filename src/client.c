@@ -101,7 +101,8 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
 
     
 
-    //
+    /*If a message returns NACK and is not corrupt then the Go-back-N is triggered.
+    i.e resend all packages from that sequense number.*/
     flag = readFlag(buffer);
     if ((flag == NACK) && isCorrupt(buffer) == 0) {
       start = clock();
@@ -115,12 +116,16 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
       printf("Received NACK. Expecting package: %d, resending from base!\n",
              base);
 
+      /*Resending the messages from last acknowledgement.*/
       for (int i = base; i == nextPacket; i++) {
         printf("packets is: %d before memcpy\n", packets[i].seq);
         memcpy(buffer, &packets[i], sizeof(packets[i]));
         sendMessage(0, socketfd, buffer, serverName);
       }
     }
+
+    /*The same goes if there has not been a message received i.e the returning messages have been lost on the way then
+    resend messages from the last ACK.*/
     int timeOut = isTimeOut(start, TIMEOUT_ACK);
     if (timeOut == 1) {
       start = clock();
@@ -140,11 +145,13 @@ int clientSlidingWindows(int socketfd, rtp *buffer,
     if ((base) == NUMBEROFPACKAGES) {
       break;
     }
+    /*Reset the buffer inorder to not have conflict in either header or data in the next packages.*/
     resetBuffer(buffer);
   }
   printf("All packages sent and ACK'd!\n");
   printf("Packets sent from client: \n");
-   for(int i = 0; i<NUMBEROFPACKAGES; i++){
+    /*Printing out all the data received from server to show that the data has been received in the correct order.*/
+    for(int i = 0; i<NUMBEROFPACKAGES; i++){
     printf("Packet %d Data: %s\n", i, (packets[i]).data);
   }
   return 1;
